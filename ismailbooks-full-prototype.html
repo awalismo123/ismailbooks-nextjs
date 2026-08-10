@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IsmailBooks — Full prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F2E7; --paper-2:#F0E9DA; --ink:#2A2320; --ink-soft:#5C5148;
+    --oxblood:#6E2A3A; --oxblood-dark:#4E1D29; --navy:#1D2438; --gold:#B8934A;
+    --radius:10px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:'Inter',sans-serif; line-height:1.6;}
+  a{color:inherit; text-decoration:none;}
+  img{max-width:100%; display:block;}
+
+  /* ---- prototype switcher (not part of real site) ---- */
+  .proto-bar{
+    position:sticky; top:0; z-index:100; display:flex; gap:8px; flex-wrap:wrap;
+    background:var(--navy); padding:12px 20px;
+  }
+  .proto-bar button{
+    background:rgba(247,242,231,0.08); color:var(--paper); border:1px solid rgba(247,242,231,0.2);
+    padding:8px 16px; border-radius:8px; font-size:13px; font-family:'Inter'; cursor:pointer;
+  }
+  .proto-bar button.active{background:var(--gold); color:var(--navy); border-color:var(--gold); font-weight:600;}
+
+  .view{display:none;}
+  .view.active{display:block;}
+
+  /* ---- shared site header/footer ---- */
+  header.site{display:flex; align-items:center; justify-content:space-between; padding:24px 48px; border-bottom:1px solid rgba(42,35,32,0.1);}
+  .logo{font-family:'Fraunces',serif; font-size:22px; font-weight:600;}
+  .logo span{color:var(--oxblood);}
+  nav.site{display:flex; gap:32px; font-size:14px; font-weight:500;}
+  nav.site a{color:var(--ink-soft);}
+  .nav-cta{background:var(--oxblood); color:var(--paper) !important; padding:9px 20px; border-radius:var(--radius); font-size:14px; font-weight:500;}
+  footer.site{background:var(--navy); color:rgba(247,242,231,0.75); padding:36px; margin-top:60px; font-size:13px; text-align:center;}
+  .btn-primary{background:var(--oxblood); color:var(--paper); padding:13px 26px; border-radius:var(--radius); font-weight:500; font-size:15px; border:none; cursor:pointer; display:inline-block;}
+  .btn-primary:hover{background:var(--oxblood-dark);}
+  .btn-secondary{border:1px solid rgba(42,35,32,0.25); padding:13px 26px; border-radius:var(--radius); font-weight:500; font-size:15px; background:none; cursor:pointer;}
+  .eyebrow{font-size:13px; letter-spacing:0.1em; text-transform:uppercase; color:var(--oxblood); font-weight:600; margin-bottom:8px;}
+  .h-serif{font-family:'Fraunces',serif; font-weight:500;}
+
+  /* ================= HOME ================= */
+  .hero{display:grid; grid-template-columns:1.1fr 1fr; gap:60px; align-items:center; padding:64px 48px; max-width:1200px; margin:0 auto;}
+  .hero h1{font-size:46px; line-height:1.1; margin-bottom:20px;}
+  .hero p{color:var(--ink-soft); max-width:420px; margin-bottom:28px;}
+  .book-visual{height:320px; display:flex; align-items:center; justify-content:center;}
+  .open-book{width:100%; max-width:380px; height:260px; display:flex; filter:drop-shadow(0 20px 32px rgba(42,35,32,0.16));}
+  .page{flex:1; background:linear-gradient(180deg,#FFFDF8,#F3ECDD); position:relative;}
+  .page.left{border-radius:6px 0 0 6px;} .page.right{border-radius:0 6px 6px 0;}
+  .gold-title{position:absolute; top:16%; left:14%; font-family:'Fraunces',serif; color:var(--gold); font-size:14px; font-weight:600;}
+  .shelf-section{padding:0 48px 70px; max-width:1200px; margin:0 auto;}
+  .shelf{display:flex; align-items:flex-end; gap:6px; background:var(--navy); border-radius:var(--radius); padding:28px 28px 0; overflow-x:auto; box-shadow:inset 0 -8px 0 rgba(184,147,74,0.5);}
+  .spine{flex:0 0 auto; width:48px; border-radius:4px 4px 0 0; display:flex; align-items:flex-end; justify-content:center; padding-bottom:16px; cursor:pointer;}
+  .spine span{writing-mode:vertical-rl; transform:rotate(180deg); font-size:12px; font-weight:600; color:rgba(247,242,231,0.92);}
+  .spine.c1{background:#6E2A3A; height:210px;} .spine.c2{background:#3E5C4E; height:190px;} .spine.c3{background:#4A3B52; height:225px;} .spine.c4{background:#5C4A2E; height:175px;} .spine.c5{background:#2E4A5C; height:200px;}
+  .books-row{display:flex; gap:26px; overflow-x:auto; padding-bottom:8px;}
+  .book-card{flex:0 0 auto; width:170px; cursor:pointer;}
+  .cover{width:170px; height:240px; border-radius:4px; box-shadow:0 8px 20px rgba(42,35,32,0.14); display:flex; align-items:flex-end; padding:16px; transition:transform .2s;}
+  .book-card:hover .cover{transform:translateY(-5px);}
+  .cover-1{background:linear-gradient(160deg,#6E2A3A,#4E1D29);} .cover-2{background:linear-gradient(160deg,#2E4A5C,#1D2438);} .cover-3{background:linear-gradient(160deg,#5C4A2E,#3E2F1D);} .cover-4{background:linear-gradient(160deg,#3E5C4E,#25382F);}
+  .cover-title{font-family:'Fraunces',serif; color:var(--paper); font-size:15px;}
+  .book-meta{margin-top:10px;} .book-meta .title{font-size:13.5px; font-weight:600;} .book-meta .author{font-size:12.5px; color:var(--ink-soft);} .book-meta .price{font-size:12.5px; color:var(--gold); font-weight:600; margin-top:4px;}
+
+  /* ================= BOOK DETAIL ================= */
+  .detail-wrap{display:grid; grid-template-columns:320px 1fr; gap:56px; padding:56px 48px; max-width:1100px; margin:0 auto;}
+  .detail-cover{width:320px; height:440px; border-radius:6px; background:linear-gradient(160deg,#6E2A3A,#4E1D29); box-shadow:0 24px 40px rgba(42,35,32,0.2); display:flex; align-items:flex-end; padding:28px;}
+  .detail-cover .cover-title{font-size:24px;}
+  .detail-info h1{font-size:34px; margin-bottom:8px;}
+  .detail-info .author{color:var(--ink-soft); margin-bottom:18px;}
+  .badge-row{display:flex; gap:10px; margin-bottom:22px;}
+  .badge{font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px; background:var(--paper-2); border:1px solid rgba(42,35,32,0.1);}
+  .price-block{display:flex; align-items:center; gap:20px; margin:26px 0;}
+  .price-block .price{font-family:'Fraunces',serif; font-size:28px; color:var(--oxblood);}
+  .detail-desc{color:var(--ink-soft); max-width:560px; margin-bottom:24px;}
+  .related-row{display:flex; gap:22px; margin-top:16px;}
+
+  /* ================= READER ================= */
+  .reader-shell{min-height:100vh; background:var(--paper-2); transition:background .3s, color .3s;}
+  .reader-shell.night{background:var(--navy); color:var(--paper);}
+  .reader-top{display:flex; align-items:center; justify-content:space-between; padding:16px 32px; border-bottom:1px solid rgba(42,35,32,0.1);}
+  .reader-shell.night .reader-top{border-color:rgba(247,242,231,0.15);}
+  .reader-controls{display:flex; gap:10px; align-items:center;}
+  .icon-btn{width:36px; height:36px; border-radius:8px; border:1px solid rgba(42,35,32,0.2); background:none; cursor:pointer; font-size:14px; color:inherit;}
+  .reader-shell.night .icon-btn{border-color:rgba(247,242,231,0.25);}
+  .reader-body{max-width:640px; margin:0 auto; padding:56px 24px; font-family:'Source Serif 4', serif; font-size:18px; line-height:1.85;}
+  .reader-body h2{font-family:'Fraunces',serif; font-size:26px; margin-bottom:20px; font-weight:500;}
+  .reader-body p{margin-bottom:18px; color:inherit;}
+  .reader-progress{height:3px; background:rgba(42,35,32,0.1);}
+  .reader-progress-fill{height:100%; width:38%; background:var(--gold);}
+  .reader-nav-btns{display:flex; justify-content:space-between; max-width:640px; margin:0 auto; padding:0 24px 48px;}
+
+  /* ================= LOGIN ================= */
+  .login-wrap{display:grid; grid-template-columns:1fr 1fr; min-height:80vh;}
+  .login-visual{background:var(--navy); display:flex; align-items:center; justify-content:center; padding:48px;}
+  .login-visual .quote{font-family:'Fraunces',serif; color:var(--paper); font-size:26px; line-height:1.4; max-width:360px;}
+  .login-visual .quote span{color:var(--gold);}
+  .login-form-side{display:flex; align-items:center; justify-content:center; padding:48px;}
+  .login-form{width:100%; max-width:360px;}
+  .login-form h2{font-size:28px; margin-bottom:8px;}
+  .login-form .sub{color:var(--ink-soft); margin-bottom:28px; font-size:14px;}
+  .field{margin-bottom:16px;}
+  .field label{font-size:13px; font-weight:600; display:block; margin-bottom:6px;}
+  .field input{width:100%; padding:12px 14px; border:1px solid rgba(42,35,32,0.2); border-radius:8px; font-family:'Inter'; font-size:14px;}
+  .field input:focus{outline:2px solid var(--oxblood); outline-offset:1px; border-color:transparent;}
+  .full-btn{width:100%; margin-top:8px;}
+  .divider{display:flex; align-items:center; gap:12px; margin:22px 0; color:var(--ink-soft); font-size:13px;}
+  .divider::before,.divider::after{content:''; flex:1; height:1px; background:rgba(42,35,32,0.15);}
+  .google-btn{width:100%; border:1px solid rgba(42,35,32,0.2); background:none; padding:12px; border-radius:8px; font-size:14px; font-weight:500; cursor:pointer;}
+  .switch-line{text-align:center; margin-top:20px; font-size:13.5px; color:var(--ink-soft);}
+  .switch-line a{color:var(--oxblood); font-weight:600;}
+
+  /* ================= PAYMENT ================= */
+  .payment-wrap{max-width:520px; margin:0 auto; padding:56px 24px;}
+  .payment-card{border:1px solid rgba(42,35,32,0.12); border-radius:12px; padding:32px; background:#fff;}
+  .steps{display:flex; gap:8px; margin-bottom:28px;}
+  .step{flex:1; text-align:center; font-size:12px; font-weight:600; color:var(--ink-soft); padding-bottom:10px; border-bottom:3px solid rgba(42,35,32,0.12);}
+  .step.active{color:var(--oxblood); border-color:var(--oxblood);}
+  .method-row{display:flex; gap:10px; margin-bottom:20px;}
+  .method{flex:1; border:1px solid rgba(42,35,32,0.2); border-radius:8px; padding:14px; text-align:center; font-size:13px; font-weight:600; cursor:pointer;}
+  .method.selected{border-color:var(--oxblood); background:rgba(110,42,58,0.06); color:var(--oxblood);}
+  .upload-box{border:2px dashed rgba(42,35,32,0.25); border-radius:10px; padding:28px; text-align:center; color:var(--ink-soft); font-size:13.5px; margin-bottom:20px;}
+
+  /* ================= ADMIN ================= */
+  .admin-shell{display:grid; grid-template-columns:220px 1fr; min-height:80vh; background:#fff; font-family:'Inter';}
+  .admin-sidebar{background:var(--navy); color:rgba(247,242,231,0.85); padding:24px 16px;}
+  .admin-sidebar .logo{color:var(--paper); font-size:18px; margin-bottom:24px;}
+  .admin-sidebar a{display:block; padding:10px 12px; border-radius:8px; font-size:14px; margin-bottom:4px;}
+  .admin-sidebar a.active{background:rgba(184,147,74,0.2); color:var(--gold); font-weight:600;}
+  .admin-main{padding:32px;}
+  .admin-main h1{font-size:24px; margin-bottom:24px; font-family:'Inter'; font-weight:600;}
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:32px;}
+  .stat-card{border:1px solid rgba(42,35,32,0.1); border-radius:10px; padding:18px;}
+  .stat-card .num{font-size:26px; font-weight:600;}
+  .stat-card .label{font-size:12.5px; color:var(--ink-soft);}
+  table.admin-table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  table.admin-table th{text-align:left; padding:10px 12px; color:var(--ink-soft); font-weight:600; border-bottom:1px solid rgba(42,35,32,0.12);}
+  table.admin-table td{padding:12px; border-bottom:1px solid rgba(42,35,32,0.06);}
+  .tag{padding:4px 10px; border-radius:20px; font-size:11.5px; font-weight:600;}
+  .tag.pending{background:#FAF0DC; color:#8A6A1E;}
+  .tag.approved{background:#E4EFE7; color:#2E5C3E;}
+
+  @media(max-width:860px){
+    .hero,.detail-wrap,.login-wrap,.admin-shell{grid-template-columns:1fr;}
+    header.site{padding:18px 20px;} nav.site{display:none;}
+    .shelf-section,.detail-wrap{padding-left:20px; padding-right:20px;}
+    .stat-row{grid-template-columns:repeat(2,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<div class="proto-bar">
+  <button class="active" onclick="showView('home',this)">Home</button>
+  <button onclick="showView('detail',this)">Book detail</button>
+  <button onclick="showView('reader',this)">Reader</button>
+  <button onclick="showView('login',this)">Login</button>
+  <button onclick="showView('payment',this)">Payment</button>
+  <button onclick="showView('admin',this)">Admin</button>
+</div>
+
+<!-- ============ HOME ============ -->
+<div class="view active" id="home">
+  <header class="site">
+    <div class="logo">Ismail<span>Books</span></div>
+    <nav class="site"><a href="#">Buugaagta</a><a href="#">Kooban</a><a href="#">Blog-ga</a></nav>
+    <a href="#" class="nav-cta" onclick="showView('login',document.querySelectorAll('.proto-bar button')[3]); return false;">Gal / Login</a>
+  </header>
+  <section class="hero">
+    <div>
+      <div class="eyebrow">Maktabad Soomaali ah</div>
+      <h1 class="h-serif">Aqriso buugaag wax ku ool ah, meel kasta oo aad joogto</h1>
+      <p>Buugaag, kooban iyo maqaallo Af-Soomaali ah — la akhriyo si fudud.</p>
+      <a href="#" class="btn-primary" onclick="showView('detail',document.querySelectorAll('.proto-bar button')[1]); return false;">Bilow akhris</a>
+    </div>
+    <div class="book-visual">
+      <div class="open-book">
+        <div class="page left"><div class="gold-title">Xul</div></div>
+        <div class="page right"></div>
+      </div>
+    </div>
+  </section>
+  <section class="shelf-section">
+    <div class="eyebrow">Qaybaha</div>
+    <h2 class="h-serif" style="font-size:28px; margin-bottom:24px;">Baadh armadaha buugaagta</h2>
+    <div class="shelf">
+      <div class="spine c1"><span>Taariikh</span></div>
+      <div class="spine c2"><span>Suugaan</span></div>
+      <div class="spine c3"><span>Diin</span></div>
+      <div class="spine c4"><span>Falsafad</span></div>
+      <div class="spine c5"><span>Nafsiyad</span></div>
+    </div>
+  </section>
+  <section class="shelf-section">
+    <div class="eyebrow">La soo bandhigay</div>
+    <h2 class="h-serif" style="font-size:28px; margin-bottom:24px;">Buugaagta la doorbiday</h2>
+    <div class="books-row">
+      <div class="book-card" onclick="showView('detail',document.querySelectorAll('.proto-bar button')[1])">
+        <div class="cover cover-1"><div class="cover-title">Aqoon la'aani waa Iftiin la'aan</div></div>
+        <div class="book-meta"><div class="title">Aqoon la'aani...</div><div class="author">Q. Farah</div><div class="price">$4.99</div></div>
+      </div>
+      <div class="book-card" onclick="showView('detail',document.querySelectorAll('.proto-bar button')[1])">
+        <div class="cover cover-2"><div class="cover-title">Xikmadaha Nolosha</div></div>
+        <div class="book-meta"><div class="title">Xikmadaha Nolosha</div><div class="author">M. Ismail</div><div class="price">Bilaash</div></div>
+      </div>
+      <div class="book-card" onclick="showView('detail',document.querySelectorAll('.proto-bar button')[1])">
+        <div class="cover cover-3"><div class="cover-title">Taariikhda Soomaalida</div></div>
+        <div class="book-meta"><div class="title">Taariikhda...</div><div class="author">A. Yusuf</div><div class="price">$6.50</div></div>
+      </div>
+      <div class="book-card" onclick="showView('detail',document.querySelectorAll('.proto-bar button')[1])">
+        <div class="cover cover-4"><div class="cover-title">Guusha shakhsi ahaaneed</div></div>
+        <div class="book-meta"><div class="title">Guusha shakhsi...</div><div class="author">H. Cali</div><div class="price">$3.99</div></div>
+      </div>
+    </div>
+  </section>
+  <footer class="site">IsmailBooks — Maktabad dijitaal ah oo Af-Soomaali ah · © 2026</footer>
+</div>
+
+<!-- ============ BOOK DETAIL ============ -->
+<div class="view" id="detail">
+  <header class="site">
+    <div class="logo">Ismail<span>Books</span></div>
+    <nav class="site"><a href="#">Buugaagta</a><a href="#">Kooban</a><a href="#">Blog-ga</a></nav>
+    <a href="#" class="nav-cta">Gal / Login</a>
+  </header>
+  <div class="detail-wrap">
+    <div class="detail-cover"><div class="cover-title h-serif">Aqoon la'aani waa Iftiin la'aan</div></div>
+    <div class="detail-info">
+      <h1 class="h-serif">Aqoon la'aani waa Iftiin la'aan</h1>
+      <div class="author">Qoraa: Q. Farah</div>
+      <div class="badge-row"><span class="badge">Falsafad</span><span class="badge">248 bog</span><span class="badge">★ 4.8</span></div>
+      <p class="detail-desc">Buuggani wuxuu ka hadlayaa muhiimadda aqoonta iyo waxbarashada bulshada Soomaaliyeed, isagoo bixinaya tusaalayaal dhab ah oo ka soo jeeda taariikhda iyo dhaqanka.</p>
+      <div class="price-block">
+        <div class="price h-serif">$4.99</div>
+        <a href="#" class="btn-primary" onclick="showView('payment',document.querySelectorAll('.proto-bar button')[4]); return false;">Iibso buugga</a>
+        <a href="#" class="btn-secondary" onclick="showView('reader',document.querySelectorAll('.proto-bar button')[2]); return false;">Muuqaal hordhac ah</a>
+      </div>
+      <div class="eyebrow" style="margin-top:36px;">La xiriira</div>
+      <div class="related-row">
+        <div class="book-card"><div class="cover cover-2" style="width:120px;height:170px;"><div class="cover-title" style="font-size:12px;">Xikmadaha</div></div></div>
+        <div class="book-card"><div class="cover cover-3" style="width:120px;height:170px;"><div class="cover-title" style="font-size:12px;">Taariikhda</div></div></div>
+        <div class="book-card"><div class="cover cover-4" style="width:120px;height:170px;"><div class="cover-title" style="font-size:12px;">Guusha</div></div></div>
+      </div>
+    </div>
+  </div>
+  <footer class="site">IsmailBooks — Maktabad dijitaal ah oo Af-Soomaali ah · © 2026</footer>
+</div>
+
+<!-- ============ READER ============ -->
+<div class="view" id="reader">
+  <div class="reader-shell" id="readerShell">
+    <div class="reader-top">
+      <div style="font-weight:600; font-size:14px;">Aqoon la'aani waa Iftiin la'aan</div>
+      <div class="reader-controls">
+        <button class="icon-btn" onclick="adjustFont(-1)">A-</button>
+        <button class="icon-btn" onclick="adjustFont(1)">A+</button>
+        <button class="icon-btn" onclick="toggleNight()">🌙</button>
+      </div>
+    </div>
+    <div class="reader-progress"><div class="reader-progress-fill"></div></div>
+    <div class="reader-body" id="readerBody">
+      <h2>Cutubka 3: Aasaaska Aqoonta</h2>
+      <p>Aqoontu waa iftiinka bulshada — waxay muujineysaa jidka hore ee horumarka. Dadyowga taariikhda ka faa'iidaystay waxbarashada ayaa gaadhay heerar sare oo horumar ah.</p>
+      <p>Marka la eego dhaqanka Soomaalida, waxbarashadu had iyo jeer waxay ahayd mid muhiim ah, laakiin qaab dhismeedka casriga ahi wuxuu u baahan yahay in la horumariyo si loo hubiyo in ardaydu helaan fursado sinnaan ah.</p>
+      <p>Cutubkan wuxuu falanqaynayaa sida machadyada waxbarasho ee Soomaalidu u shaqeeyaan, iyo caqabadaha ay la kulmaan.</p>
+    </div>
+    <div class="reader-nav-btns">
+      <button class="btn-secondary">← Cutubka hore</button>
+      <button class="btn-primary">Cutubka xiga →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div class="view" id="login">
+  <div class="login-wrap">
+    <div class="login-visual">
+      <div class="quote h-serif">"Aqoontu waa <span>hanti</span> aan weligeed dhamaan."</div>
+    </div>
+    <div class="login-form-side">
+      <div class="login-form">
+        <h2 class="h-serif">Ku soo dhawow</h2>
+        <div class="sub">Gal si aad u sii wadato akhrisyadaada</div>
+        <div class="field"><label>Email</label><input type="email" placeholder="tusaale@ismailbooks.com"></div>
+        <div class="field"><label>Password</label><input type="password" placeholder="••••••••"></div>
+        <button class="btn-primary full-btn">Gal</button>
+        <div class="divider">ama</div>
+        <button class="google-btn">Ku gal Google</button>
+        <div class="switch-line">Ma lihid akoon? <a href="#">Isdiwaangeli</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAYMENT ============ -->
+<div class="view" id="payment">
+  <header class="site">
+    <div class="logo">Ismail<span>Books</span></div>
+    <div></div><div></div>
+  </header>
+  <div class="payment-wrap">
+    <div class="steps">
+      <div class="step active">1. Habka</div>
+      <div class="step">2. Xaqiiji</div>
+      <div class="step">3. Dhammaystir</div>
+    </div>
+    <div class="payment-card">
+      <h2 class="h-serif" style="margin-bottom:18px; font-size:20px;">Bixinta — Aqoon la'aani waa Iftiin la'aan ($4.99)</h2>
+      <div class="eyebrow">Dooro habka lacag bixinta</div>
+      <div class="method-row">
+        <div class="method selected">EVC Plus</div>
+        <div class="method">eDahab</div>
+        <div class="method">Zaad</div>
+      </div>
+      <div class="field"><label>Lambarka Xaqiijinta</label><input type="text" placeholder="Ex: TXN12345678"></div>
+      <div class="field"><label>Magaca bixiyaha</label><input type="text" placeholder="Magacaaga oo buuxa"></div>
+      <div class="upload-box">📎 Ku shub screenshot-ka lacag bixinta</div>
+      <button class="btn-primary full-btn">Dir bixinta</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADMIN ============ -->
+<div class="view" id="admin">
+  <div class="admin-shell">
+    <div class="admin-sidebar">
+      <div class="logo h-serif">IsmailBooks</div>
+      <a class="active">Dashboard</a>
+      <a>Buugaagta</a>
+      <a>Kooban</a>
+      <a>Blog-ga</a>
+      <a>Lacagaha</a>
+      <a>Isticmaalayaasha</a>
+      <a>Falanqaynta</a>
+      <a>Dejinta</a>
+    </div>
+    <div class="admin-main">
+      <h1>Dashboard-ka Maamulka</h1>
+      <div class="stat-row">
+        <div class="stat-card"><div class="num">409</div><div class="label">Isticmaale guud</div></div>
+        <div class="stat-card"><div class="num">18</div><div class="label">Buugaag</div></div>
+        <div class="stat-card"><div class="num">137</div><div class="label">Lacag bixin</div></div>
+        <div class="stat-card"><div class="num">12</div><div class="label">Sugaya ansixin</div></div>
+      </div>
+      <h2 style="font-size:16px; margin-bottom:12px;">Lacag bixinada dhawaan</h2>
+      <table class="admin-table">
+        <tr><th>Isticmaale</th><th>Nooca</th><th>Qiimaha</th><th>Xaalada</th></tr>
+        <tr><td>Xasan Cabdi</td><td>Buug — Xikmadaha</td><td>$4.99</td><td><span class="tag pending">Sugaya</span></td></tr>
+        <tr><td>Ayaan Maxamed</td><td>Kooban — Taariikh</td><td>$2.50</td><td><span class="tag approved">La ansixiyay</span></td></tr>
+        <tr><td>Cabdiraxman Nur</td><td>Buug — Guusha</td><td>$3.99</td><td><span class="tag pending">Sugaya</span></td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function showView(id, btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.proto-bar button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  window.scrollTo(0,0);
+}
+let fontSize = 18;
+function adjustFont(d){
+  fontSize = Math.max(14, Math.min(24, fontSize + d*2));
+  document.getElementById('readerBody').style.fontSize = fontSize+'px';
+}
+function toggleNight(){
+  document.getElementById('readerShell').classList.toggle('night');
+}
+document.querySelectorAll('.method').forEach(m=>{
+  m.addEventListener('click', ()=>{
+    document.querySelectorAll('.method').forEach(x=>x.classList.remove('selected'));
+    m.classList.add('selected');
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IsmailBooks Style Guide — Light Paper Library</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,800&family=Inter:wght@400;500;600;700;800&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    :root {
+      /* Storefront */
+      --paper: #FBF7F0;
+      --surface: #FFFFFF;
+      --ink: #201B16;
+      --muted: #6B5F52;
+      --primary: #7A1F2B;
+      --primary-hover: #5E1521;
+      --navy: #1F3A54;
+      --gold: #C9962E;
+      --success: #2E7D5B;
+      --error: #B3261E;
+      --border: #E8DFD2;
+
+      /* Reader: Light Paper */
+      --reader-light-bg: #F7F1E5;
+      --reader-light-text: #2B241D;
+      --reader-light-muted: #7A6F61;
+      --reader-light-accent: #7A1F2B;
+      --reader-light-border: #E4D8C4;
+
+      /* Reader: Sepia */
+      --reader-sepia-bg: #F1E4CD;
+      --reader-sepia-text: #33291A;
+      --reader-sepia-muted: #7C6A50;
+      --reader-sepia-accent: #8C3B2E;
+      --reader-sepia-border: #DFC9A8;
+
+      /* Reader: Warm Night */
+      --reader-night-bg: #151210;
+      --reader-night-surface: #1F1B17;
+      --reader-night-text: #EFE7DB;
+      --reader-night-muted: #B7AC9D;
+      --reader-night-accent: #D4A94C;
+      --reader-night-border: #3A332C;
+
+      --shadow: 0 20px 50px rgba(32, 27, 22, 0.08);
+      --radius: 20px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.65;
+    }
+
+    img {
+      max-width: 100%;
+    }
+
+    a {
+      color: var(--navy);
+    }
+
+    .container {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 14px 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--primary);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 800;
+    }
+
+    .nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .nav a {
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--navy);
+    }
+
+    .nav a:hover {
+      text-decoration: underline;
+    }
+
+    .hero {
+      padding: 56px 0 24px;
+    }
+
+    .hero-card {
+      background: linear-gradient(180deg, #FFFFFF 0%, #FBF7F0 100%);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 48px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 34px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #F8EBC8;
+      color: #7A5400;
+      border: 1px solid #EAD39A;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    h1,
+    h2,
+    h3,
+    .display {
+      font-family: "Fraunces", Georgia, serif;
+      letter-spacing: -0.03em;
+    }
+
+    h1 {
+      font-size: clamp(36px, 5vw, 60px);
+      line-height: 1.05;
+      margin: 18px 0 14px;
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 58ch;
+      margin: 0;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 28px;
+    }
+
+    .hero-note {
+      margin-top: 18px;
+      color: var(--success);
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .hero-visual {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      padding: 22px;
+    }
+
+    .mini-shelf {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .mini-book {
+      height: 126px;
+      border-radius: 14px;
+      display: flex;
+      align-items: flex-end;
+      padding: 10px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.3;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 34px;
+      margin: 26px 0;
+      box-shadow: 0 10px 30px rgba(32, 27, 22, 0.04);
+    }
+
+    h2 {
+      font-size: clamp(28px, 3vw, 36px);
+      margin: 0 0 10px;
+    }
+
+    .section-sub {
+      color: var(--muted);
+      margin: 0 0 26px;
+      max-width: 82ch;
+    }
+
+    h3 {
+      margin: 26px 0 12px;
+      font-size: 22px;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .swatches {
+      grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+    }
+
+    .swatch {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .swatch-color {
+      height: 96px;
+      padding: 12px;
+      display: flex;
+      align-items: flex-end;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .swatch-meta {
+      padding: 13px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .swatch-meta strong {
+      font-size: 14px;
+    }
+
+    .swatch-meta span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .ratio {
+      display: flex;
+      height: 64px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin: 14px 0 10px;
+    }
+
+    .ratio div {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .ratio .r60 {
+      width: 60%;
+      background: var(--paper);
+      color: var(--ink);
+    }
+
+    .ratio .r30 {
+      width: 30%;
+      background: #fff;
+      color: var(--ink);
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+
+    .ratio .r10 {
+      width: 10%;
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .reader-grid {
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    }
+
+    .reader {
+      border-radius: 24px;
+      border: 1px solid var(--reader-light-border);
+      padding: 24px;
+    }
+
+    .reader.light {
+      background: var(--reader-light-bg);
+      color: var(--reader-light-text);
+      border-color: var(--reader-light-border);
+    }
+
+    .reader.sepia {
+      background: var(--reader-sepia-bg);
+      color: var(--reader-sepia-text);
+      border-color: var(--reader-sepia-border);
+    }
+
+    .reader.night {
+      background: var(--reader-night-bg);
+      color: var(--reader-night-text);
+      border-color: var(--reader-night-border);
+    }
+
+    .reader-label {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 16px;
+    }
+
+    .reader.light .reader-label {
+      background: rgba(122, 31, 43, 0.1);
+      color: var(--reader-light-accent);
+    }
+
+    .reader.sepia .reader-label {
+      background: rgba(140, 59, 46, 0.12);
+      color: var(--reader-sepia-accent);
+    }
+
+    .reader.night .reader-label {
+      background: rgba(212, 169, 76, 0.14);
+      color: var(--reader-night-accent);
+    }
+
+    .reader-meta {
+      font-size: 13px;
+      margin: 0 0 6px;
+      opacity: 0.78;
+    }
+
+    .reader h3 {
+      font-family: "Lora", Georgia, serif;
+      margin: 8px 0 12px;
+      font-size: 27px;
+      line-height: 1.25;
+    }
+
+    .reader p {
+      font-family: "Lora", Georgia, serif;
+      font-size: 17px;
+      line-height: 1.85;
+      margin: 0 0 14px;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      margin: 18px 0 14px;
+    }
+
+    .reader.night .progress {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 42%;
+      border-radius: 999px;
+      background: var(--reader-light-accent);
+    }
+
+    .reader.sepia .progress span {
+      background: var(--reader-sepia-accent);
+    }
+
+    .reader.night .progress span {
+      background: var(--reader-night-accent);
+    }
+
+    .reader-small {
+      font-size: 13px;
+      opacity: 0.78;
+      margin: 0;
+    }
+
+    .demo-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      margin: 16px 0;
+    }
+
+    .demo-stack {
+      display: grid;
+      gap: 14px;
+      max-width: 420px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 48px;
+      padding: 12px 20px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-weight: 800;
+      font-size: 15px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #fff;
+      color: var(--navy);
+      border-color: var(--navy);
+    }
+
+    .btn-secondary:hover {
+      background: #F3F6F9;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--navy);
+    }
+
+    .btn-ghost:hover {
+      text-decoration: underline;
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-error {
+      background: var(--error);
+      color: #fff;
+    }
+
+    .btn-disabled {
+      background: #E9E2D8;
+      color: #9A8F82;
+      cursor: not-allowed;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .btn-sm {
+      min-height: 40px;
+      padding: 8px 14px;
+      font-size: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 800;
+      border: 1px solid transparent;
+    }
+
+    .badge-gold {
+      background: var(--gold);
+      color: #201B16;
+    }
+
+    .badge-success {
+      background: rgba(46, 125, 91, 0.1);
+      color: var(--success);
+      border-color: rgba(46, 125, 91, 0.25);
+    }
+
+    .badge-pending {
+      background: #F8EBC8;
+      color: #8A5A00;
+      border-color: #EAD39A;
+    }
+
+    .badge-error {
+      background: rgba(179, 38, 30, 0.08);
+      color: var(--error);
+      border-color: rgba(179, 38, 30, 0.22);
+    }
+
+    .badge-navy {
+      background: rgba(31, 58, 84, 0.08);
+      color: var(--navy);
+      border-color: rgba(31, 58, 84, 0.18);
+    }
+
+    .component-grid {
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      align-items: start;
+    }
+
+    .book-card,
+    .buy-box,
+    .payment-box,
+    .form-box,
+    .state-card {
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      background: #fff;
+      padding: 22px;
+    }
+
+    .cover {
+      height: 230px;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 16px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cover::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.22));
+    }
+
+    .cover > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cover-1 {
+      background: linear-gradient(160deg, #1F3A54, #101F2E);
+    }
+
+    .cover-2 {
+      background: linear-gradient(160deg, #7A1F2B, #4A1018);
+    }
+
+    .cover-3 {
+      background: linear-gradient(160deg, #5D4A2A, #2F2413);
+    }
+
+    .cover small {
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      opacity: 0.82;
+      font-weight: 800;
+    }
+
+    .cover strong {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 25px;
+      line-height: 1.15;
+      margin-top: 6px;
+    }
+
+    .book-title {
+      margin: 16px 0 4px;
+      font-size: 21px;
+    }
+
+    .book-meta {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 10px;
+    }
+
+    .price-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 14px 0;
+    }
+
+    .price {
+      color: var(--navy);
+      font-size: 26px;
+      font-weight: 800;
+    }
+
+    .old-price {
+      color: var(--muted);
+      text-decoration: line-through;
+      font-size: 14px;
+    }
+
+    .box-title {
+      font-size: 24px;
+      margin: 0 0 8px;
+    }
+
+    .box-sub {
+      color: var(--muted);
+      margin: 0 0 18px;
+      font-size: 15px;
+    }
+
+    .list {
+      margin: 18px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    .list li {
+      margin: 8px 0;
+    }
+
+    .trust-line {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: #F4FAF7;
+      border: 1px solid rgba(46, 125, 91, 0.18);
+      color: #235C45;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 14px 0;
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-weight: 800;
+      color: var(--muted);
+      min-height: 46px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .chip.selected {
+      border: 2px solid var(--navy);
+      color: var(--navy);
+      background: #F7FAFD;
+    }
+
+    .field {
+      margin: 14px 0;
+    }
+
+    .field label {
+      display: block;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+
+    .field input,
+    .field textarea,
+    .field select {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font: inherit;
+      background: #FFFEFC;
+      color: var(--ink);
+    }
+
+    .field input:focus,
+    .field textarea:focus,
+    .field select:focus {
+      outline: 2px solid rgba(31, 58, 84, 0.18);
+      border-color: var(--navy);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .error-text {
+      color: var(--error);
+      font-size: 13px;
+      margin-top: 6px;
+      font-weight: 800;
+    }
+
+    .input-error {
+      border-color: var(--error) !important;
+    }
+
+    .phone-wrap {
+      display: grid;
+      place-items: center;
+    }
+
+    .phone {
+      width: 330px;
+      max-width: 100%;
+      padding: 12px;
+      border-radius: 38px;
+      background: #171412;
+      border: 8px solid #171412;
+      box-shadow: 0 24px 60px rgba(32, 27, 22, 0.18);
+    }
+
+    .phone-screen {
+      background: var(--paper);
+      border-radius: 26px;
+      overflow: hidden;
+      min-height: 590px;
+      position: relative;
+      padding: 16px 16px 104px;
+    }
+
+    .phone-cover {
+      height: 190px;
+      border-radius: 18px;
+      background: linear-gradient(160deg, #7A1F2B, #4A1018);
+      display: flex;
+      align-items: flex-end;
+      padding: 14px;
+      color: #fff;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 800;
+      font-size: 22px;
+    }
+
+    .phone-title {
+      margin: 16px 0 6px;
+      font-size: 22px;
+    }
+
+    .phone-text {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0 0 14px;
+    }
+
+    .phone-sticky {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 12px;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 10px;
+      box-shadow: 0 12px 30px rgba(32, 27, 22, 0.14);
+      display: grid;
+      gap: 8px;
+    }
+
+    .phone-price {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 800;
+      color: var(--navy);
+      font-size: 14px;
+    }
+
+    .state-grid {
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .state-card h3 {
+      margin: 0 0 8px;
+      font-size: 19px;
+    }
+
+    .state-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .state-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 680px;
+      background: #fff;
+    }
+
+    th,
+    td {
+      padding: 13px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: #FCFAF6;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .color-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      display: inline-block;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    .type-specimen {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      margin: 12px 0;
+      background: #fff;
+    }
+
+    .type-display {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.1;
+      margin: 0 0 10px;
+    }
+
+    .type-ui {
+      font-family: "Inter", system-ui, sans-serif;
+      font-size: 18px;
+      margin: 0 0 10px;
+    }
+
+    .type-reader {
+      font-family: "Lora", Georgia, serif;
+      font-size: 20px;
+      line-height: 1.85;
+      margin: 0;
+    }
+
+    .rules-grid {
+      grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    }
+
+    .rule-card {
+      border-radius: 22px;
+      padding: 22px;
+      border: 1px solid;
+    }
+
+    .rule-do {
+      background: #F4FAF7;
+      border-color: rgba(46, 125, 91, 0.25);
+    }
+
+    .rule-dont {
+      background: #FDF5F4;
+      border-color: rgba(179, 38, 30, 0.22);
+    }
+
+    .rule-card h3 {
+      margin: 0 0 12px;
+    }
+
+    .rule-card ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .rule-card li {
+      margin: 8px 0;
+    }
+
+    pre {
+      background: #201B16;
+      color: #F7F1E5;
+      padding: 22px;
+      border-radius: 18px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.75;
+      margin: 0;
+    }
+
+    .footer {
+      padding: 36px 0 64px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .note {
+      background: #F7FAFD;
+      border: 1px solid rgba(31, 58, 84, 0.16);
+      color: #22344A;
+      border-radius: 16px;
+      padding: 14px 16px;
+      margin-top: 16px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 920px) {
+      .hero-card {
+        grid-template-columns: 1fr;
+        padding: 28px;
+      }
+
+      .panel {
+        padding: 22px;
+      }
+
+      .nav {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand">
+        <div class="logo">IB</div>
+        <span>IsmailBooks Style Guide</span>
+      </div>
+
+      <nav class="nav">
+        <a href="#palette">Palette</a>
+        <a href="#reader">Reader</a>
+        <a href="#buttons">Buttons</a>
+        <a href="#badges">Badges</a>
+        <a href="#typography">Typography</a>
+        <a href="#components">Components</a>
+        <a href="#states">States</a>
+        <a href="#rules">Rules</a>
+        <a href="#tokens">CSS Tokens</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-card">
+        <div>
+          <span class="eyebrow">Light Paper Library • 2026</span>
+
+          <h1>Hel buugaag iyo aqoon ku anfacda</h1>
+
+          <p class="lead">
+            Tani waa tusaale muuqaal ah oo loogu talagalay IsmailBooks.
+            Naqshaddu waa inay noqotaa mid diirran, la aamini karo, fudud
+            in la akhriyo, oo ku habboon mobile-ka iyo iibka buugaagta.
+          </p>
+
+          <div class="hero-actions">
+            <a href="#components" class="btn btn-primary">Iibso buugga</a>
+            <a href="#reader" class="btn btn-secondary">Akhriso preview</a>
+          </div>
+
+          <p class="hero-note">
+            ✓ EVC • Zaad • eDahab &nbsp;•&nbsp; Ansixin 24 saacadood gudahood
+          </p>
+        </div>
+
+        <div class="hero-visual">
+          <div class="mini-shelf">
+            <div class="mini-book" style="background: linear-gradient(160deg, #1F3A54, #101F2E);">
+              Falsafadda
+            </div>
+            <div class="mini-book" style="background: linear-gradient(160deg, #7A1F2B, #4A1018);">
+              Nafsadda
+            </div>
+            <div class="mini-book" style="background: linear-gradient(160deg, #5D4A2A, #2F2413);">
+              Taariikhda
+            </div>
+            <div class="mini-book" style="background: linear-gradient(160deg, #2E7D5B, #173F2E);">
+              Horumar
+            </div>
+            <div class="mini-book" style="background: linear-gradient(160deg, #4A3B5F, #241C2F);">
+              Fikir
+            </div>
+            <div class="mini-book" style="background: linear-gradient(160deg, #8A5A00, #4A3000);">
+              Dhaqan
+            </div>
+          </div>
+
+          <div class="trust-line">
+            <span>★</span>
+            <span>
+              Naqshadani waxay diiradda saaraysaa kalsoonida, akhriska,
+              iyo jidka iibka ee mobile-ka.
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="palette">
+      <h2>1. Storefront color palette</h2>
+      <p class="section-sub">
+        Midabbada storefront-ka waa inay noqdaan kuwo diirran, nadiif ah,
+        oo la aamini karo. Oxblood waa midabka iibka. Navy waa midabka
+        kalsoonida. Gold waa accent yar oo kaliya.
+      </p>
+
+      <div class="grid swatches">
+        <div class="swatch">
+          <div class="swatch-color" style="background: #FBF7F0; color: #201B16;">
+            Paper
+          </div>
+          <div class="swatch-meta">
+            <strong>Paper Background</strong>
+            <span class="mono">#FBF7F0</span>
+            <span>Main site background</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #FFFFFF; color: #201B16;">
+            Surface
+          </div>
+          <div class="swatch-meta">
+            <strong>Surface / Card</strong>
+            <span class="mono">#FFFFFF</span>
+            <span>Cards, modals, payment box</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #201B16; color: #FFFFFF;">
+            Ink
+          </div>
+          <div class="swatch-meta">
+            <strong>Ink Text</strong>
+            <span class="mono">#201B16</span>
+            <span>Headings and body text</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #6B5F52; color: #FFFFFF;">
+            Muted
+          </div>
+          <div class="swatch-meta">
+            <strong>Muted Text</strong>
+            <span class="mono">#6B5F52</span>
+            <span>Subtitles, meta, captions</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #7A1F2B; color: #FFFFFF;">
+            Primary
+          </div>
+          <div class="swatch-meta">
+            <strong>Oxblood Primary</strong>
+            <span class="mono">#7A1F2B</span>
+            <span>Buy button / primary CTA</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #5E1521; color: #FFFFFF;">
+            Hover
+          </div>
+          <div class="swatch-meta">
+            <strong>Primary Hover</strong>
+            <span class="mono">#5E1521</span>
+            <span>Button hover state</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #1F3A54; color: #FFFFFF;">
+            Navy
+          </div>
+          <div class="swatch-meta">
+            <strong>Trust Navy</strong>
+            <span class="mono">#1F3A54</span>
+            <span>Links, secondary, trust</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #C9962E; color: #201B16;">
+            Gold
+          </div>
+          <div class="swatch-meta">
+            <strong>Gold Accent</strong>
+            <span class="mono">#C9962E</span>
+            <span>Badges and highlights only</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #2E7D5B; color: #FFFFFF;">
+            Success
+          </div>
+          <div class="swatch-meta">
+            <strong>Success Green</strong>
+            <span class="mono">#2E7D5B</span>
+            <span>Approved / success states</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #B3261E; color: #FFFFFF;">
+            Error
+          </div>
+          <div class="swatch-meta">
+            <strong>Error Red</strong>
+            <span class="mono">#B3261E</span>
+            <span>Errors and rejected states</span>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #E8DFD2; color: #201B16;">
+            Border
+          </div>
+          <div class="swatch-meta">
+            <strong>Border Line</strong>
+            <span class="mono">#E8DFD2</span>
+            <span>Borders, dividers, inputs</span>
+          </div>
+        </div>
+      </div>
+
+      <h3>Color usage ratio</h3>
+      <div class="ratio">
+        <div class="r60">60% background</div>
+        <div class="r30">30% surface + text</div>
+        <div class="r10">10%</div>
+      </div>
+      <p class="section-sub" style="margin-bottom: 0;">
+        10% waa midabbada action-ka: oxblood, navy, gold. Ha ka dhigin
+        bogga mid aad u midab badan. Buy button-ka waa inuu si cad u muuqdaa.
+      </p>
+    </section>
+
+    <section class="panel" id="reader">
+      <h2>2. Reader themes</h2>
+      <p class="section-sub">
+        Reader-ku waa inuu noqdaa mid deggan oo aan indhaha daalin.
+        Isticmaal saddex theme: Light Paper, Sepia Comfort, iyo Warm Night.
+        Ha isticmaalin cad saafi ah ama madow saafi ah.
+      </p>
+
+      <div class="grid reader-grid">
+        <article class="reader light">
+          <span class="reader-label">Light Paper — Default</span>
+          <p class="reader-meta">Chapter 3 • 12 min read</p>
+          <h3>Sida loo dhiso caadooyin wanaagsan</h3>
+          <p>
+            Caadooyinka wanaagsan waxay ka dhashaan soo noqnoqosho,
+            deegaan sax ah, iyo abaalmarin yar oo joogto ah. Qoraalku
+            waa inuu noqdaa mid fudud oo deggan.
+          </p>
+          <div class="progress"><span></span></div>
+          <p class="reader-small">
+            Background #F7F1E5 • Text #2B241D • Accent #7A1F2B
+          </p>
+        </article>
+
+        <article class="reader sepia">
+          <span class="reader-label">Sepia Comfort</span>
+          <p class="reader-meta">Chapter 4 • 9 min read</p>
+          <h3>Fekerka qoto dheer iyo samirka</h3>
+          <p>
+            Akhriska dheer wuxuu u baahan yahay midab diirran oo aan
+            indhaha daalin. Sepia waa xulasho wanaagsan marka qofku
+            akhrinayo muddo dheer.
+          </p>
+          <div class="progress"><span></span></div>
+          <p class="reader-small">
+            Background #F1E4CD • Text #33291A • Accent #8C3B2E
+          </p>
+        </article>
+
+        <article class="reader night">
+          <span class="reader-label">Warm Night</span>
+          <p class="reader-meta">Chapter 5 • 14 min read</p>
+          <h3>Habeenkii iyo maskaxda deggan</h3>
+          <p>
+            Night mode waa inuu noqdaa mid diirran, madow brown ah,
+            oo aan ahayn madow saafi ah. Tani waxay yaraynaysaa
+            daalka indhaha habeenkii.
+          </p>
+          <div class="progress"><span></span></div>
+          <p class="reader-small">
+            Background #151210 • Text #EFE7DB • Accent #D4A94C
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" id="buttons">
+      <h2>3. Buttons</h2>
+      <p class="section-sub">
+        Primary button waa oxblood. Secondary waa navy outline. Ghost waa
+        link-style. Buttons-ka mobile-ka waa inay ahaadaan ugu yaraan 48px.
+      </p>
+
+      <div class="demo-row">
+        <a href="#" class="btn btn-primary">Iibso buugga</a>
+        <a href="#" class="btn btn-secondary">Akhriso preview</a>
+        <a href="#" class="btn btn-ghost">Faahfaahin dheeraad ah</a>
+      </div>
+
+      <div class="demo-row">
+        <a href="#" class="btn btn-success">Approved</a>
+        <a href="#" class="btn btn-error">Rejected</a>
+        <a href="#" class="btn btn-disabled">Disabled</a>
+      </div>
+
+      <div class="demo-stack">
+        <a href="#" class="btn btn-primary btn-block">Dir bixinta</a>
+        <a href="#" class="btn btn-secondary btn-block">Ku noqo buugaagta</a>
+      </div>
+
+      <div class="note">
+        Ha isticmaalin gold button primary ahaan. Gold waa accent yar.
+        Oxblood ayaa ah midabka iibka.
+      </div>
+    </section>
+
+    <section class="panel" id="badges">
+      <h2>4. Badges & status</h2>
+      <p class="section-sub">
+        Badges-ka waa inay si deggan u muujiyaan xaaladda: premium, cusub,
+        approved, pending, rejected.
+      </p>
+
+      <div class="demo-row">
+        <span class="badge badge-gold">Premium</span>
+        <span class="badge badge-gold">Cusub</span>
+        <span class="badge badge-navy">Af-Soomaali</span>
+        <span class="badge badge-success">Approved</span>
+        <span class="badge badge-pending">Sugaya ansixin</span>
+        <span class="badge badge-error">Rejected</span>
+      </div>
+
+      <div class="note">
+        Gold badge waa inuu leeyahay text madow <span class="mono">#201B16</span>.
+        Ha isticmaalin white text gold korkiisa.
+      </div>
+    </section>
+
+    <section class="panel" id="typography">
+      <h2>5. Typography</h2>
+      <p class="section-sub">
+        Madaxa: Fraunces ama Playfair Display. UI/body: Inter ama IBM Plex Sans.
+        Reader: Lora ama Source Serif. Qoraalka reader-ka waa inuu ahaadaa
+        18px–20px, line-height 1.7–1.8.
+      </p>
+
+      <div class="type-specimen">
+        <p class="type-display">Fraunces / Playfair Display</p>
+        <p class="type-ui">
+          Inter — UI text, buttons, navigation, labels, dashboard, forms.
+        </p>
+        <p class="type-reader">
+          Lora — Reader text. Qoraalka buugaagta waa inuu noqdaa mid deggan,
+          diirran, oo fudud in la akhriyo muddo dheer.
+        </p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Element</th>
+              <th>Font</th>
+              <th>Size</th>
+              <th>Line height</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Hero H1</td>
+              <td>Fraunces</td>
+              <td>40px–60px</td>
+              <td>1.05–1.1</td>
+            </tr>
+            <tr>
+              <td>Section H2</td>
+              <td>Fraunces</td>
+              <td>28px–36px</td>
+              <td>1.15</td>
+            </tr>
+            <tr>
+              <td>Card title</td>
+              <td>Inter / Fraunces</td>
+              <td>20px–24px</td>
+              <td>1.25</td>
+            </tr>
+            <tr>
+              <td>Body text</td>
+              <td>Inter</td>
+              <td>16px–18px</td>
+              <td>1.65</td>
+            </tr>
+            <tr>
+              <td>Reader text</td>
+              <td>Lora</td>
+              <td>18px–20px</td>
+              <td>1.75–1.85</td>
+            </tr>
+            <tr>
+              <td>Meta / caption</td>
+              <td>Inter</td>
+              <td>13px–14px</td>
+              <td>1.5</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="components">
+      <h2>6. Storefront components</h2>
+      <p class="section-sub">
+        Tusaalayaashan waxay muujinayaan book card, buy box, payment form,
+        iyo mobile sticky CTA.
+      </p>
+
+      <div class="grid component-grid">
+        <div class="book-card">
+          <div class="cover cover-1">
+            <small>Self-development</small>
+            <strong>Nafsadda iyo Falsafadda</strong>
+          </div>
+
+          <h3 class="book-title">Nafsadda iyo Falsafadda</h3>
+          <p class="book-meta">Af-Soomaali • Psychology • 120 pages</p>
+
+          <span class="badge badge-gold">Bestseller</span>
+
+          <div class="price-row">
+            <div>
+              <div class="price">$4.99</div>
+              <div class="old-price">$7.99</div>
+            </div>
+            <span class="badge badge-navy">Digital</span>
+          </div>
+
+          <a href="#" class="btn btn-primary btn-block">Iibso</a>
+          <a href="#" class="btn btn-ghost btn-block">Akhriso preview</a>
+        </div>
+
+        <div class="buy-box">
+          <h3 class="box-title">Book detail buy box</h3>
+          <p class="box-sub">
+            Buy box waa inuu noqdaa cad, nadiif ah, oo leh trust signal
+            meel u dhow button-ka iibka.
+          </p>
+
+          <div class="price-row">
+            <div class="price">$4.99</div>
+            <span class="badge badge-success">Instant access after approval</span>
+          </div>
+
+          <a href="#" class="btn btn-primary btn-block">Iibso buugga</a>
+          <a href="#" class="btn btn-secondary btn-block">Akhriso preview</a>
+
+          <ul class="list">
+            <li>Akhris buuxa oo online ah</li>
+            <li>Mobile iyo desktop</li>
+            <li>Bookmark iyo progress</li>
+            <li>Af-Soomaali cad</li>
+          </ul>
+
+          <div class="trust-line">
+            <span>✓</span>
+            <span>Bixinta EVC, Zaad, ama eDahab. Ansixin 24 saacadood gudahood.</span>
+          </div>
+        </div>
+
+        <div class="payment-box">
+          <h3 class="box-title">Dhammaystir bixinta</h3>
+          <p class="box-sub">
+            Payment page waa inuu noqdaa mid deggan oo la aamini karo.
+          </p>
+
+          <div class="chips">
+            <span class="chip selected">EVC</span>
+            <span class="chip">Zaad</span>
+            <span class="chip">eDahab</span>
+          </div>
+
+          <div class="field">
+            <label for="phone">Lambarka telefoonka</label>
+            <input id="phone" type="tel" value="061 XXX XXXX" />
+            <div class="helper">Geli lambarka aad bixinta ka dirayso.</div>
+          </div>
+
+          <div class="field">
+            <label for="ref">Reference / transaction ID</label>
+            <input id="ref" type="text" placeholder="Tusaale: EVC123456" />
+          </div>
+
+          <a href="#" class="btn btn-primary btn-block">Dir bixinta</a>
+
+          <div class="trust-line">
+            <span>✓</span>
+            <span>
+              Waxaad heli doontaa xaqiijin. Haddii aad caawimo u baahato,
+              nagala soo xiriir WhatsApp.
+            </span>
+          </div>
+        </div>
+
+        <div class="phone-wrap">
+          <div class="phone">
+            <div class="phone-screen">
+              <div class="phone-cover">
+                Nafsadda iyo Falsafadda
+              </div>
+
+              <h3 class="phone-title">Nafsadda iyo Falsafadda</h3>
+              <p class="phone-text">
+                Buug Af-Soomaali ah oo ku saabsan horumarinta nafta,
+                fikirka, iyo falsafadda.
+              </p>
+
+              <span class="badge badge-gold">Bestseller</span>
+
+              <div class="phone-sticky">
+                <div class="phone-price">
+                  <span>$4.99</span>
+                  <span>EVC • Zaad • eDahab</span>
+                </div>
+                <a href="#" class="btn btn-primary btn-block">Iibso hadda</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="states">
+      <h2>7. Payment & dashboard states</h2>
+      <p class="section-sub">
+        User-ku waa inuu had iyo jeer ogaadaa xaaladda iibkiisa:
+        pending, approved, rejected, ama locked preview.
+      </p>
+
+      <div class="grid state-grid">
+        <div class="state-card">
+          <div class="state-top">
+            <strong>Sugaya ansixin</strong>
+            <span class="badge badge-pending">Pending</span>
+          </div>
+          <p>
+            Bixintaada waa la helay. Waxaan kuu xaqiijin doonnaa
+            24 saacadood gudahood.
+          </p>
+        </div>
+
+        <div class="state-card">
+          <div class="state-top">
+            <strong>Waa la ansixiyay</strong>
+            <span class="badge badge-success">Approved</span>
+          </div>
+          <p>
+            Buugga waa laguu furay. Hadda waad akhrin kartaa.
+          </p>
+        </div>
+
+        <div class="state-card">
+          <div class="state-top">
+            <strong>Waa la diiday</strong>
+            <span class="badge badge-error">Rejected</span>
+          </div>
+          <p>
+            Xaqiijinta lama helin. Fadlan hubi reference-ka ama nagala
+            soo xiriir WhatsApp.
+          </p>
+        </div>
+
+        <div class="state-card">
+          <div class="state-top">
+            <strong>Preview kaliya</strong>
+            <span class="badge badge-navy">Locked</span>
+          </div>
+          <p>
+            Buuggan waa paid. Akhriso preview, kadib iibso si aad u
+            hesho buuxda.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="contrast">
+      <h2>8. Contrast & accessibility</h2>
+      <p class="section-sub">
+        Kuwani waa tusaalayaal contrast ah. Hadafkaagu waa in qoraalku
+        fudud yahay in la akhriyo, gaar ahaan mobile-ka.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Example</th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#201B16;"></span>
+                Ink on Paper
+              </td>
+              <td style="background:#FBF7F0; color:#201B16; font-weight:800;">
+                Qoraal aad u cad oo fudud
+              </td>
+              <td>Excellent</td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#6B5F52;"></span>
+                Muted on Paper
+              </td>
+              <td style="background:#FBF7F0; color:#6B5F52; font-weight:700;">
+                Qoraal secondary ah
+              </td>
+              <td>Good AA</td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#7A1F2B;"></span>
+                White on Oxblood
+              </td>
+              <td style="background:#7A1F2B; color:#FFFFFF; font-weight:800;">
+                Iibso buugga
+              </td>
+              <td>Excellent</td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#1F3A54;"></span>
+                White on Navy
+              </td>
+              <td style="background:#1F3A54; color:#FFFFFF; font-weight:800;">
+                Trust / secondary
+              </td>
+              <td>Excellent</td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#C9962E;"></span>
+                Gold on Paper
+              </td>
+              <td style="background:#FBF7F0; color:#C9962E; font-weight:800;">
+                Ha isticmaalin small text
+              </td>
+              <td>Bad for text</td>
+            </tr>
+
+            <tr>
+              <td>
+                <span class="color-dot" style="background:#201B16;"></span>
+                Ink on Gold badge
+              </td>
+              <td style="background:#C9962E; color:#201B16; font-weight:800;">
+                Premium badge
+              </td>
+              <td>Good</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="rules">
+      <h2>9. Design rules</h2>
+      <p class="section-sub">
+        Xeerarka muhiimka ah ee naqshadda IsmailBooks.
+      </p>
+
+      <div class="grid rules-grid">
+        <div class="rule-card rule-do">
+          <h3>Do</h3>
+          <ul>
+            <li>Isticmaal paper background oo diirran.</li>
+            <li>Isticmaal oxblood primary CTA ahaan.</li>
+            <li>Isticmaal navy links iyo trust ahaan.</li>
+            <li>Isticmaal gold accent yar ahaan.</li>
+            <li>Isticmaal green success/approved kaliya.</li>
+            <li>Isticmaal buttons waaweyn mobile-ka.</li>
+            <li>Isticmaal reader themes oo deggan.</li>
+            <li>Isticmaal high contrast text.</li>
+          </ul>
+        </div>
+
+        <div class="rule-card rule-dont">
+          <h3>Don’t</h3>
+          <ul>
+            <li>Ha isticmaalin dark glass storefront ahaan.</li>
+            <li>Ha isticmaalin purple/blue neon gradients.</li>
+            <li>Ha isticmaalin gold primary button ahaan.</li>
+            <li>Ha isticmaalin white text gold korkiisa.</li>
+            <li>Ha isticmaalin pure black reader background.</li>
+            <li>Ha isticmaalin pure white long reading background.</li>
+            <li>Ha ka dhigin bogga mid aad u midab badan.</li>
+            <li>Ha ku qarin paid content client-side kaliya.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tokens">
+      <h2>10. CSS variables</h2>
+      <p class="section-sub">
+        Kuwani waa design tokens-ka aad siin karto Cursor ama aad gelin
+        karto globals.css.
+      </p>
+
+      <pre>
+:root {
+  /* Storefront */
+  --background: #FBF7F0;
+  --surface: #FFFFFF;
+  --text: #201B16;
+  --muted: #6B5F52;
+  --primary: #7A1F2B;
+  --primary-hover: #5E1521;
+  --secondary: #1F3A54;
+  --accent: #C9962E;
+  --success: #2E7D5B;
+  --error: #B3261E;
+  --border: #E8DFD2;
+
+  /* Reader default: Light Paper */
+  --reader-background: #F7F1E5;
+  --reader-text: #2B241D;
+  --reader-muted: #7A6F61;
+  --reader-heading: #201B16;
+  --reader-accent: #7A1F2B;
+  --reader-border: #E4D8C4;
+}
+
+/* Reader theme: Sepia */
+[data-reader-theme="sepia"] {
+  --reader-background: #F1E4CD;
+  --reader-text: #33291A;
+  --reader-muted: #7C6A50;
+  --reader-heading: #2B2113;
+  --reader-accent: #8C3B2E;
+  --reader-border: #DFC9A8;
+}
+
+/* Reader theme: Warm Night */
+[data-reader-theme="night"] {
+  --reader-background: #151210;
+  --reader-text: #EFE7DB;
+  --reader-muted: #B7AC9D;
+  --reader-heading: #F7F1E5;
+  --reader-accent: #D4A94C;
+  --reader-border: #3A332C;
+}
+      </pre>
+    </section>
+  </main>
+
+  <footer class="footer container">
+    IsmailBooks Style Guide — Light Paper Library.
+    Warm, readable, trustworthy, mobile-friendly, and conversion-focused.
+  </footer>
+</body>
+</html>
