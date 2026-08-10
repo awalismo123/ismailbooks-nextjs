@@ -12,15 +12,20 @@ export async function generateMetadata({
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
   const supabase = await createClient();
 
-  const { data: post } = await supabase
+  const { data: post, error } = await supabase
     .from("blog_posts")
     .select("title, excerpt, meta_title, meta_description, featured_image")
     .eq("slug", slug)
     .eq("status", "published")
     .single();
+
+  if (error) {
+    console.error("Error fetching blog post metadata:", error);
+  }
 
   if (!post) {
     return { title: "Qoraal — IsmailBooks" };
@@ -53,11 +58,12 @@ export default async function SingleBlogPostPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeURIComponent(rawSlug);
   const supabase = await createClient();
 
   // Fetch the post
-  const { data: post } = await supabase
+  const { data: post, error } = await supabase
     .from("blog_posts")
     .select(
       "id, title, slug, excerpt, content, featured_image, category_id, estimated_read_time, view_count, created_at, meta_title, meta_description, blog_categories(name, slug)"
@@ -65,6 +71,10 @@ export default async function SingleBlogPostPage({
     .eq("slug", slug)
     .eq("status", "published")
     .single();
+
+  if (error) {
+    console.error("Error fetching blog post:", error);
+  }
 
   if (!post) notFound();
 
