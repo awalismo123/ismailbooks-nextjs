@@ -69,14 +69,26 @@ export default async function SingleBlogPostPage({
       "id, title, slug, excerpt, content, featured_image, category_id, estimated_read_time, view_count, created_at, meta_title, meta_description, blog_categories(name, slug)"
     )
     .eq("slug", slug)
-    .eq("status", "published")
-    .single();
-
   if (error) {
-    console.error("Error fetching blog post:", error);
+    return (
+      <div className="p-10">
+        <h1>Database Error Debug:</h1>
+        <pre>{JSON.stringify(error, null, 2)}</pre>
+        <p>Slug we searched for: {slug}</p>
+        <p>URL fallback: {process.env.NEXT_PUBLIC_SUPABASE_URL || "fallback used"}</p>
+      </div>
+    );
   }
 
-  if (!post) notFound();
+  if (!post) {
+    return (
+      <div className="p-10">
+        <h1>Post Not Found Debug:</h1>
+        <p>Slug we searched for: {slug}</p>
+        <p>Post is null, but no database error was thrown.</p>
+      </div>
+    );
+  }
 
   const categoryName = (post.blog_categories as any)?.name ?? null;
   const categorySlug = (post.blog_categories as any)?.slug ?? null;
