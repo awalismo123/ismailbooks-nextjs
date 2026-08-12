@@ -69,6 +69,9 @@ export default async function SingleBlogPostPage({
       "id, title, slug, excerpt, content, featured_image, category_id, estimated_read_time, view_count, created_at, meta_title, meta_description, blog_categories(name, slug)"
     )
     .eq("slug", slug)
+    .eq("status", "published")
+    .single();
+
   if (error) {
     return (
       <div className="p-10">
