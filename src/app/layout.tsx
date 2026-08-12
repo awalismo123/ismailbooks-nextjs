@@ -23,25 +23,63 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "IsmailBooks — Somali Psychology, Philosophy & Literature",
+  title: "IsmailBooks — Buugaag, Kooban & Aqoon Af-Soomaali",
   description:
-    "The premier Somali digital platform for psychology, philosophy books, summaries, and insightful essays.",
+    "Maktabad dhijitaal ah oo Af-Soomaali ah: buugaagta cilmi-nafsiga, falsafadda iyo horumarinta nafta. Akhriso, iibso, oo kobci aqoontaada.",
   keywords: [
     "IsmailBooks",
-    "Somali books",
-    "Somali psychology",
-    "Falsafadda Soomaalida",
     "Buugaag Soomaali",
-    "Ismail Abdi Ismail",
+    "Cilmi-nafsiga",
+    "Falsafadda",
+    "Horumar Shaqsiyeed",
+    "Somali books",
+    "Psychology",
+    "Philosophy",
   ],
+  authors: [{ name: "Ismail Abdi Ismail" }],
+  creator: "Ismail Abdi Ismail",
   openGraph: {
-    title: "IsmailBooks — Somali Psychology, Philosophy & Literature",
-    description:
-      "Discover curated Somali translations, deep book summaries, and transformative essays.",
+    title: "IsmailBooks — Buugaag & Aqoon Af-Soomaali",
+    description: "Buugaag dhijitaal ah oo Af-Soomaali ah. Akhriso maanta.",
     url: "https://ismailbooks.com",
     siteName: "IsmailBooks",
     type: "website",
+    locale: "so_SO",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "IsmailBooks — Maktabadda Af-Soomaaliga",
+      },
+    ],
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "IsmailBooks — Buugaag & Aqoon Af-Soomaali",
+    description: "Buugaag dhijitaal ah oo Af-Soomaali ah. Akhriso maanta.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF7F0" },
+    { media: "(prefers-color-scheme: dark)", color: "#201B16" },
+  ],
 };
 
 export default function RootLayout({
@@ -52,8 +90,16 @@ export default function RootLayout({
   return (
     <html
       lang="so"
+      dir="ltr"
       className={`${inter.variable} ${fraunces.variable} ${lora.variable} h-full antialiased selection:bg-[#7A1F2B] selection:text-white`}
     >
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="format-detection" content="telephone=no" />
+      </head>
       <body className="min-h-full flex flex-col bg-[#FBF7F0] text-[#201B16]">
         <AuthProvider>
           <LanguageProvider>{children}</LanguageProvider>
