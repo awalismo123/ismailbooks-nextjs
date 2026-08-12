@@ -66,35 +66,32 @@ export default async function SingleBlogPostPage({
   const { data: post, error } = await supabase
     .from("blog_posts")
     .select(
-      "id, title, slug, excerpt, content, featured_image, category_id, estimated_read_time, view_count, created_at, meta_title, meta_description, blog_categories(name, slug)"
+      "id, title, slug, excerpt, content, featured_image, category_id, estimated_read_time, view_count, created_at, meta_title, meta_description"
     )
     .eq("slug", slug)
     .eq("status", "published")
     .single();
 
   if (error) {
-    return (
-      <div className="p-10">
-        <h1>Database Error Debug:</h1>
-        <pre>{JSON.stringify(error, null, 2)}</pre>
-        <p>Slug we searched for: {slug}</p>
-        <p>URL fallback: {process.env.NEXT_PUBLIC_SUPABASE_URL || "fallback used"}</p>
-      </div>
-    );
+    console.error("Database Error:", error);
+    notFound();
   }
+  if (!post) notFound();
 
-  if (!post) {
-    return (
-      <div className="p-10">
-        <h1>Post Not Found Debug:</h1>
-        <p>Slug we searched for: {slug}</p>
-        <p>Post is null, but no database error was thrown.</p>
-      </div>
-    );
+  let categoryName = null;
+  let categorySlug = null;
+  
+  if (post.category_id) {
+    const { data: cat } = await supabase
+      .from("blog_categories")
+      .select("name, slug")
+      .eq("id", post.category_id)
+      .single();
+    if (cat) {
+      categoryName = cat.name;
+      categorySlug = cat.slug;
+    }
   }
-
-  const categoryName = (post.blog_categories as any)?.name ?? null;
-  const categorySlug = (post.blog_categories as any)?.slug ?? null;
 
   // Increment view count
   supabase
@@ -106,7 +103,7 @@ export default async function SingleBlogPostPage({
   // Fetch related posts (same category_id, excluding current)
   const { data: related } = await supabase
     .from("blog_posts")
-    .select("id, title, slug, excerpt, category_id, estimated_read_time, created_at, blog_categories(name)")
+    .select("id, title, slug, excerpt, category_id, estimated_read_time, created_at")
     .eq("status", "published")
     .eq("category_id", post.category_id ?? 0)
     .neq("id", post.id)
@@ -279,7 +276,7 @@ export default async function SingleBlogPostPage({
                       className="surface-card group block no-underline"
                     >
                       <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A1F2B] mb-2 block">
-                        {(p.blog_categories as any)?.name ?? "Blog"}
+                        {categoryName ?? "Blog"}
                       </span>
                       <h3 className="font-display text-base font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors leading-snug mb-2">
                         {p.title}
