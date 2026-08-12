@@ -4,7 +4,9 @@ import { Footer } from "@/components/layout/Footer";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Clock, Eye, ArrowLeft, Share2, MessageCircle, Tag } from "lucide-react";
+import { Clock, Eye, ArrowLeft, ArrowRight, BookOpen, Sparkles, ChevronRight } from "lucide-react";
+import { BookCard, type BookCardData } from "@/components/books/BookCard";
+import { BlogArticleShell } from "@/components/blog/BlogArticleShell";
 
 // ─── Metadata ────────────────────────────────────────────────────────────────
 export async function generateMetadata({
@@ -23,11 +25,7 @@ export async function generateMetadata({
     .eq("status", "published")
     .single();
 
-  if (error) {
-    console.error("Error fetching blog post metadata:", error);
-  }
-
-  if (!post) {
+  if (error || !post) {
     return { title: "Qoraal — IsmailBooks" };
   }
 
@@ -43,16 +41,18 @@ export async function generateMetadata({
       type: "article",
       locale: "so_SO",
       siteName: "IsmailBooks",
+      images: post.featured_image ? [{ url: post.featured_image }] : undefined,
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: post.featured_image ? [post.featured_image] : undefined,
     },
   };
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Page Component ──────────────────────────────────────────────────────────
 export default async function SingleBlogPostPage({
   params,
 }: {
@@ -62,7 +62,7 @@ export default async function SingleBlogPostPage({
   const slug = decodeURIComponent(rawSlug);
   const supabase = await createClient();
 
-  // Fetch the post
+  // Fetch the blog post
   const { data: post, error } = await supabase
     .from("blog_posts")
     .select(
@@ -72,15 +72,13 @@ export default async function SingleBlogPostPage({
     .eq("status", "published")
     .single();
 
-  if (error) {
-    console.error("Database Error:", error);
+  if (error || !post) {
     notFound();
   }
-  if (!post) notFound();
 
+  // Fetch category info if category_id exists
   let categoryName = null;
   let categorySlug = null;
-  
   if (post.category_id) {
     const { data: cat } = await supabase
       .from("blog_categories")
@@ -93,14 +91,14 @@ export default async function SingleBlogPostPage({
     }
   }
 
-  // Increment view count
+  // Server-side view count increment (fire and forget)
   supabase
     .from("blog_posts")
     .update({ view_count: (post.view_count ?? 0) + 1 })
     .eq("id", post.id)
     .then(() => {});
 
-  // Fetch related posts (same category_id, excluding current)
+  // Fetch related blog posts
   const { data: related } = await supabase
     .from("blog_posts")
     .select("id, title, slug, excerpt, category_id, estimated_read_time, created_at")
@@ -111,6 +109,67 @@ export default async function SingleBlogPostPage({
 
   const relatedPosts = related ?? [];
 
+  // Fetch Previous and Next blog posts for footer navigation
+  const { data: prevPost } = await supabase
+    .from("blog_posts")
+    .select("id, title, slug")
+    .eq("status", "published")
+    .lt("created_at", post.created_at || new Date().toISOString())
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const { data: nextPost } = await supabase
+    .from("blog_posts")
+    .select("id, title, slug")
+    .eq("status", "published")
+    .gt("created_at", post.created_at || new Date().toISOString())
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  // Fetch related books for Commerce Bridge
+  let relatedBooksData: BookCardData[] = [];
+  try {
+    const { data: books } = await supabase
+      .from("books")
+      .select("id, title, author, description, is_paid, price, category, cover_image, pages, average_rating")
+      .eq("is_active", true)
+      .limit(3);
+
+    if (books && books.length > 0) {
+      const COVER_GRADIENTS = [
+        "cover-gradient-1",
+        "cover-gradient-2",
+        "cover-gradient-3",
+        "cover-gradient-4",
+        "cover-gradient-5",
+        "cover-gradient-6",
+      ];
+      relatedBooksData = books.map((b, i) => {
+        let coverUrl = COVER_GRADIENTS[i % COVER_GRADIENTS.length];
+        if (b.cover_image) {
+          const { data } = supabase.storage.from("covers").getPublicUrl(b.cover_image);
+          coverUrl = data.publicUrl;
+        }
+        const isPaid = b.is_paid === true || (b.is_paid as unknown) === 1;
+        return {
+          id: b.id,
+          title: b.title,
+          author: b.author,
+          is_paid: isPaid,
+          cover: coverUrl,
+          priceLabel: isPaid ? `$${Number(b.price).toLocaleString()}` : "Bilaash",
+          pages: b.pages ?? undefined,
+          rating: b.average_rating ? Number(b.average_rating).toFixed(1) : undefined,
+          category: b.category,
+        };
+      });
+    }
+  } catch (err) {
+    console.error("Error fetching related books:", err);
+  }
+
   const formattedDate = post.created_at
     ? new Date(post.created_at).toLocaleDateString("so-SO", {
         year: "numeric",
@@ -119,22 +178,25 @@ export default async function SingleBlogPostPage({
       })
     : "";
 
-  const shareUrl = `https://ismailbooks.com/blog/${post.slug}`;
-  const whatsappText = encodeURIComponent(`${post.title}\n${shareUrl}`);
-
   return (
-    <div className="min-h-screen flex flex-col bg-[#FBF7F0]">
-      {/* JSON-LD Article schema */}
+    <div className="min-h-screen flex flex-col bg-[#FBF7F0] text-[#201B16]">
+      {/* ── JSON-LD BlogPosting Schema ── */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
           __html: JSON.stringify({
             "@context": "https://schema.org",
-            "@type": "Article",
+            "@type": "BlogPosting",
             headline: post.title,
             description: post.excerpt ?? "",
+            image: post.featured_image ? [post.featured_image] : undefined,
             datePublished: post.created_at,
             inLanguage: "so",
+            author: {
+              "@type": "Organization",
+              name: "IsmailBooks",
+              url: "https://ismailbooks.com",
+            },
             publisher: {
               "@type": "Organization",
               name: "IsmailBooks",
@@ -146,154 +208,254 @@ export default async function SingleBlogPostPage({
 
       <Navbar />
 
-      <main className="flex-grow py-10 sm:py-14">
+      <main className="flex-grow py-8 sm:py-12">
         <div className="container-site">
-          <div className="max-w-3xl mx-auto">
+          <article className="max-w-[840px] mx-auto">
 
-            {/* ── Back link ── */}
-            <Link
-              href="/blog"
-              className="inline-flex items-center gap-2 text-sm font-semibold text-[#6B5F52] hover:text-[#7A1F2B] transition-colors mb-8 no-underline"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Ku noqo Qoraallada
-            </Link>
+            {/* ── Breadcrumb Navigation ── */}
+            <nav aria-label="Breadcrumb" className="mb-6">
+              <ol className="flex items-center flex-wrap gap-1.5 text-xs text-[#6B5F52]">
+                <li>
+                  <Link href="/" className="hover:text-[#7A1F2B] transition-colors no-underline">
+                    Boga Hore
+                  </Link>
+                </li>
+                <li>
+                  <ChevronRight className="w-3.5 h-3.5 text-[#E8DFD2]" />
+                </li>
+                <li>
+                  <Link href="/blog" className="hover:text-[#7A1F2B] transition-colors no-underline">
+                    Qoraallada
+                  </Link>
+                </li>
+                {categoryName && categorySlug && (
+                  <>
+                    <li>
+                      <ChevronRight className="w-3.5 h-3.5 text-[#E8DFD2]" />
+                    </li>
+                    <li className="font-semibold text-[#1F3A54] truncate max-w-[160px] sm:max-w-none">
+                      <Link
+                        href={`/blog/category/${categorySlug}`}
+                        className="hover:text-[#7A1F2B] transition-colors no-underline"
+                      >
+                        {categoryName}
+                      </Link>
+                    </li>
+                  </>
+                )}
+              </ol>
+            </nav>
 
-            {/* ── Article header ── */}
-            <header className="mb-10">
+            {/* ── Article Header ── */}
+            <header className="max-w-[720px] mx-auto text-left mb-8">
               {categoryName && (
-                <Link
-                  href={`/blog/category/${categorySlug}`}
-                  className="inline-flex items-center gap-1.5 mb-4 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-[rgba(122,31,43,0.07)] text-[#7A1F2B] border border-[rgba(122,31,43,0.15)] no-underline hover:bg-[rgba(122,31,43,0.12)] transition-colors"
-                >
-                  <Tag className="w-3 h-3" />
-                  {categoryName}
-                </Link>
+                <div className="mb-4">
+                  <span className="badge badge-navy">
+                    {categoryName}
+                  </span>
+                </div>
               )}
 
-              <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#201B16] leading-tight mb-5">
+              <h1 className="font-display text-3xl sm:text-4xl lg:text-[44px] font-extrabold text-[#201B16] leading-[1.18] tracking-tight mb-5">
                 {post.title}
               </h1>
 
               {post.excerpt && (
-                <p className="text-lg text-[#6B5F52] leading-relaxed mb-6 border-l-4 border-[#C9962E] pl-4 font-medium">
+                <p className="font-serif italic text-lg sm:text-xl text-[#6B5F52] leading-relaxed mb-6">
                   {post.excerpt}
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[#6B5F52] pb-6 border-b border-[#E8DFD2]">
-                <span className="font-extrabold text-[#201B16] text-sm">IsmailBooks</span>
-                {formattedDate && <span>{formattedDate}</span>}
-                {post.estimated_read_time && (
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[#C9962E]" />
-                    {post.estimated_read_time} daqiiqo akhris
+              {/* Author & Meta Row */}
+              <div className="flex flex-wrap items-center justify-between gap-4 py-4 border-y border-[#E8DFD2] text-xs text-[#6B5F52]">
+                <div className="flex items-center gap-3">
+                  {/* Initials Avatar */}
+                  <div className="w-10 h-10 rounded-full bg-[#7A1F2B] text-white flex items-center justify-center font-extrabold text-sm shadow-xs select-none">
+                    IB
+                  </div>
+                  <div>
+                    <span className="font-bold text-[#201B16] text-sm block leading-tight">
+                      IsmailBooks
+                    </span>
+                    <span className="text-[11px] text-[#6B5F52]">
+                      Qoraaga Madasha
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 text-xs">
+                  {formattedDate && (
+                    <time dateTime={post.created_at ?? undefined} className="font-medium">
+                      {formattedDate}
+                    </time>
+                  )}
+                  {post.estimated_read_time && (
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-[#C9962E]" />
+                      {post.estimated_read_time} daqiiqo akhris
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5 font-medium hidden xs:inline-flex">
+                    <Eye className="w-3.5 h-3.5 text-[#1F3A54]" />
+                    {(post.view_count ?? 0).toLocaleString()}
                   </span>
-                )}
-                <span className="flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-[#1F3A54]" />
-                  {(post.view_count ?? 0).toLocaleString()} daawasho
-                </span>
+                </div>
               </div>
             </header>
 
-            {/* ── Featured image ── */}
+            {/* ── Featured Image ── */}
             {post.featured_image && (
-              <div className="mb-10 rounded-2xl overflow-hidden shadow-md">
+              <figure className="max-w-[720px] mx-auto mb-8 rounded-2xl overflow-hidden border border-[#E8DFD2] shadow-xs">
                 <img
                   src={post.featured_image}
                   alt={post.title}
-                  className="w-full h-64 sm:h-80 object-cover"
+                  loading="eager"
+                  className="w-full max-h-[420px] object-cover"
                 />
-              </div>
+              </figure>
             )}
 
-            {/* ── Article body ── */}
-            <article
-              className="
-                prose prose-lg max-w-none
-                prose-headings:font-display prose-headings:text-[#201B16] prose-headings:font-extrabold
-                prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4
-                prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-3
-                prose-p:text-[#3D3228] prose-p:leading-[1.85] prose-p:text-base sm:prose-p:text-[17px]
-                prose-a:text-[#1F3A54] prose-a:font-semibold prose-a:underline-offset-2
-                prose-a:hover:text-[#7A1F2B]
-                prose-strong:text-[#201B16] prose-strong:font-extrabold
-                prose-blockquote:border-l-[#C9962E] prose-blockquote:bg-[#FBF7F0]
-                prose-blockquote:rounded-r-xl prose-blockquote:py-2 prose-blockquote:pr-4
-                prose-blockquote:text-[#5C4F3A] prose-blockquote:not-italic
-                prose-ul:text-[#3D3228] prose-ol:text-[#3D3228]
-                prose-li:marker:text-[#C9962E]
-                prose-code:bg-[#F3EDE3] prose-code:text-[#7A1F2B] prose-code:rounded prose-code:px-1
-                prose-hr:border-[#E8DFD2]
-              "
-              dangerouslySetInnerHTML={{ __html: post.content ?? "" }}
-            />
-
-            {/* ── Share strip ── */}
-            <div className="mt-14 pt-8 border-t border-[#E8DFD2]">
-              <div className="panel flex flex-col sm:flex-row items-center justify-between gap-5">
-                <div>
-                  <span className="text-xs text-[#6B5F52] block mb-1 font-semibold uppercase tracking-widest">Wadaag</span>
-                  <p className="font-display text-lg font-bold text-[#201B16]">
-                    Ma heshay fikrad cusub? Qoraalkan la wadaag.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <a
-                    href={`https://wa.me/?text=${whatsappText}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[rgba(37,211,102,0.1)] text-[#1a7a40] border border-[rgba(37,211,102,0.25)] text-sm font-bold no-underline hover:bg-[rgba(37,211,102,0.18)] transition-colors"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    WhatsApp
-                  </a>
-                  <button
-                    onClick={undefined}
-                    id="copy-link-btn"
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[rgba(31,58,84,0.07)] text-[#1F3A54] border border-[rgba(31,58,84,0.15)] text-sm font-bold hover:bg-[rgba(31,58,84,0.12)] transition-colors"
-                    aria-label="Copy link"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Kobi Link-ga
-                  </button>
-                </div>
-              </div>
+            {/* ── Main Interactive Article Reader Shell (Client Component) ── */}
+            <div className="mb-14 max-w-[720px] mx-auto">
+              <BlogArticleShell
+                title={post.title}
+                slug={post.slug}
+                content={post.content ?? ""}
+              />
             </div>
 
-            {/* ── Related posts ── */}
-            {relatedPosts.length > 0 && (
-              <section className="mt-14">
-                <h2 className="font-display text-2xl font-extrabold text-[#201B16] mb-6">
-                  Qoraallo kale
+            {/* ── Commerce Bridge Section ── */}
+            <section className="my-16 pt-10 border-t border-[#E8DFD2] max-w-[720px] mx-auto">
+              <div className="flex items-center gap-2 mb-6">
+                <BookOpen className="w-5 h-5 text-[#7A1F2B]" />
+                <h2 className="font-display text-2xl font-extrabold text-[#201B16]">
+                  Buugaag la xiriira
                 </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                  {relatedPosts.map((p: any) => (
-                    <Link
-                      key={p.id}
-                      href={`/blog/${p.slug}`}
-                      className="surface-card group block no-underline"
-                    >
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A1F2B] mb-2 block">
-                        {categoryName ?? "Blog"}
-                      </span>
-                      <h3 className="font-display text-base font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors leading-snug mb-2">
-                        {p.title}
-                      </h3>
-                      {p.estimated_read_time && (
-                        <span className="text-xs text-[#6B5F52] flex items-center gap-1 mt-3">
-                          <Clock className="w-3 h-3" />
-                          {p.estimated_read_time} daqiiqo
-                        </span>
-                      )}
-                    </Link>
+              </div>
+
+              {/* Related Books Cards */}
+              {relatedBooksData.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
+                  {relatedBooksData.map((book) => (
+                    <BookCard key={book.id} book={book} />
                   ))}
                 </div>
-              </section>
-            )}
+              )}
 
-          </div>
+              {/* High Impact Inline Bookstore CTA Banner */}
+              <div className="panel bg-gradient-to-r from-[#FBF7F0] via-[#FFFFFF] to-[#F7F1E5] border border-[#C9962E]/30 relative overflow-hidden p-6 sm:p-8 rounded-3xl shadow-sm">
+                <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5">
+                  <div className="space-y-1.5 max-w-md">
+                    <span className="badge badge-gold">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Maktabadda IsmailBooks
+                    </span>
+                    <h3 className="font-display text-xl sm:text-2xl font-extrabold text-[#201B16]">
+                      Ma rabtaa buugga oo buuxa?
+                    </h3>
+                    <p className="text-xs sm:text-sm text-[#6B5F52] leading-relaxed">
+                      Eeg kumanaan buug oo af-Soomaali ku qoran, kuwo bilaash ah iyo kuwo gaar ah oo aad isla markiba akhrisan karto.
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/books"
+                    className="btn btn-primary min-h-[48px] px-6 text-sm font-extrabold whitespace-nowrap shadow-sm hover:scale-[1.02] transition-transform no-underline"
+                  >
+                    Sahami Maktabadda
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </Link>
+                </div>
+              </div>
+            </section>
+
+            {/* ── Article Footer ── */}
+            <footer className="mt-12 pt-8 border-t border-[#E8DFD2] max-w-[720px] mx-auto space-y-10">
+              
+              {/* Author Bio Card */}
+              <div className="surface-card flex flex-col sm:flex-row items-start sm:items-center gap-5 p-6 bg-white border border-[#E8DFD2] rounded-2xl">
+                <div className="w-14 h-14 rounded-full bg-[#7A1F2B] text-white flex items-center justify-center font-extrabold text-xl shrink-0 select-none shadow-sm">
+                  IB
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-display text-base font-bold text-[#201B16]">
+                    IsmailBooks Editorial
+                  </h3>
+                  <p className="text-xs text-[#6B5F52] leading-relaxed">
+                    Ku soo dhowow IsmailBooks — madasha buugaagta digital-ka ah iyo qoraallada aqooneed ee Soomaaliyeed. Waxaan idiin soo bandhignaa falanqayn qoto dheer iyo buugaag tayo sare leh.
+                  </p>
+                </div>
+              </div>
+
+              {/* Prev / Next Post Links */}
+              {(prevPost || nextPost) && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                  {prevPost ? (
+                    <Link
+                      href={`/blog/${prevPost.slug}`}
+                      className="surface-card p-4 border border-[#E8DFD2] rounded-2xl group no-underline block"
+                    >
+                      <span className="text-[11px] font-bold text-[#6B5F52] flex items-center gap-1 mb-1">
+                        <ArrowLeft className="w-3.5 h-3.5 text-[#7A1F2B] transition-transform group-hover:-translate-x-1" />
+                        Qoraalkii Hore
+                      </span>
+                      <p className="font-display text-sm font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors line-clamp-2">
+                        {prevPost.title}
+                      </p>
+                    </Link>
+                  ) : <div />}
+
+                  {nextPost ? (
+                    <Link
+                      href={`/blog/${nextPost.slug}`}
+                      className="surface-card p-4 border border-[#E8DFD2] rounded-2xl text-right group no-underline block"
+                    >
+                      <span className="text-[11px] font-bold text-[#6B5F52] flex items-center justify-end gap-1 mb-1">
+                        Qoraalka Xiga
+                        <ArrowRight className="w-3.5 h-3.5 text-[#7A1F2B] transition-transform group-hover:translate-x-1" />
+                      </span>
+                      <p className="font-display text-sm font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors line-clamp-2">
+                        {nextPost.title}
+                      </p>
+                    </Link>
+                  ) : <div />}
+                </div>
+              )}
+
+              {/* Related Posts Section ("Qoraallo kale") */}
+              {relatedPosts.length > 0 && (
+                <div className="pt-6">
+                  <h3 className="font-display text-xl font-extrabold text-[#201B16] mb-5">
+                    Qoraallo kale
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    {relatedPosts.map((p: any) => (
+                      <Link
+                        key={p.id}
+                        href={`/blog/${p.slug}`}
+                        className="surface-card p-5 group block no-underline border border-[#E8DFD2] rounded-2xl hover:-translate-y-1 transition-all"
+                      >
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#7A1F2B] mb-2 block">
+                          {categoryName ?? "Blog"}
+                        </span>
+                        <h4 className="font-display text-sm font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors leading-snug mb-2 line-clamp-2">
+                          {p.title}
+                        </h4>
+                        {p.estimated_read_time && (
+                          <span className="text-xs text-[#6B5F52] flex items-center gap-1 mt-3">
+                            <Clock className="w-3 h-3 text-[#C9962E]" />
+                            {p.estimated_read_time} min
+                          </span>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </footer>
+
+          </article>
         </div>
       </main>
 
