@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Clock, ArrowRight, Quote, MessageCircle } from "lucide-react";
+import { Clock, Eye, ArrowRight, ArrowUpRight, X } from "lucide-react";
+import { getCategoryTheme } from "@/lib/categoryTheme";
 
-interface BlogPost {
+// Minimal types expected from the server
+export interface BlogHomePost {
   id: string;
   slug: string;
   title: string;
@@ -15,543 +18,374 @@ interface BlogPost {
   createdAt: string | null;
 }
 
-interface Category {
+export interface BlogHomeCategory {
   id: string;
-  name: string;
   slug: string;
+  name: string;
   count: number;
 }
 
-interface Book {
-  id: string;
-  slug: string;
-  title: string;
-  price: number | null;
-  coverImage: string | null;
-}
-
 interface BlogHomeClientProps {
-  posts: BlogPost[];
-  categories: Category[];
-  relatedBooks: Book[];
+  initialPosts: BlogHomePost[];
+  categories: BlogHomeCategory[];
 }
 
-export function BlogHomeClient({ posts, categories, relatedBooks }: BlogHomeClientProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+export function BlogHomeClient({ initialPosts, categories }: BlogHomeClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeCategoryParam = searchParams.get("category");
 
-  // Filter posts by category and search
+  // Filter posts based on the URL parameter
   const filteredPosts = useMemo(() => {
-    return posts.filter((post) => {
-      const matchesCategory = !selectedCategory || post.categoryName === selectedCategory;
-      const matchesSearch =
-        !searchQuery ||
-        post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (post.excerpt && post.excerpt.toLowerCase().includes(searchQuery.toLowerCase()));
-      return matchesCategory && matchesSearch;
-    });
-  }, [posts, selectedCategory, searchQuery]);
+    if (!activeCategoryParam) return initialPosts;
+    return initialPosts.filter(
+      (p) => p.categoryName && p.categoryName.toLowerCase() === activeCategoryParam.toLowerCase()
+    );
+  }, [initialPosts, activeCategoryParam]);
 
-  const featuredPost = filteredPosts.length > 0 ? filteredPosts[0] : null;
-  const listPosts = filteredPosts.length > 1 ? filteredPosts.slice(1) : [];
+  const activeCategory = useMemo(() => {
+    if (!activeCategoryParam) return null;
+    return categories.find((c) => c.name.toLowerCase() === activeCategoryParam.toLowerCase()) || {
+      name: activeCategoryParam,
+      slug: activeCategoryParam,
+      count: filteredPosts.length,
+    };
+  }, [activeCategoryParam, categories, filteredPosts.length]);
 
-  const formattedDate = (dateStr: string | null) => {
-    if (!dateStr) return "";
-    return new Date(dateStr).toLocaleDateString("so-SO", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+  const activeTheme = getCategoryTheme(activeCategory?.name || null);
+
+  const setCategory = (catName: string | null) => {
+    if (!catName) {
+      router.push("/blog", { scroll: false });
+    } else {
+      router.push(`/blog?category=${encodeURIComponent(catName)}`, { scroll: false });
+    }
   };
 
-  const todayDate = new Date().toLocaleDateString("so-SO", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const firstPost = filteredPosts.length > 0 ? filteredPosts[0] : null;
+  const restPosts = filteredPosts.length > 1 ? filteredPosts.slice(1) : [];
 
   return (
-    <>
-      {/* EDITORIAL MASTHEAD */}
-      <section className="pt-10 pb-8 border-b-2 border-double border-[#E8DFD2]">
+    <div className="bg-[#FBF7F0] min-h-screen pb-20">
+      
+      {/* ── MOBILE CHIP RAIL (Sticky) ── */}
+      <div className="md:hidden sticky top-0 z-40 bg-[#FBF7F0]/95 backdrop-blur-md border-b border-[#E8DFD2] py-3">
         <div className="container-site">
-          <p className="text-xs font-bold text-[#6B5F52] uppercase tracking-widest mb-3">
-            {todayDate}
-          </p>
-          <h1 className="font-display text-[42px] sm:text-[56px] font-extrabold text-[#201B16] leading-tight mb-4">
-            Blog-ga IsmailBooks
-          </h1>
-          <p className="font-serif italic text-lg sm:text-xl text-[#6B5F52] max-w-2xl mb-6 leading-relaxed">
-            Falanqayn qoto dheer, maqaallo cilmiyeysan iyo fikrado ku saabsan nolasha,
-            falsafadda iyo horumarinta nafta.
-          </p>
-          <div className="flex items-center gap-3 text-sm font-semibold text-[#6B5F52]">
-            <span className="text-[#201B16]">{posts.length} Qoraal</span>
-            <span className="text-[#C9962E]">●</span>
-            <span className="text-[#201B16]">{categories.length} Qaybood</span>
-          </div>
-        </div>
-      </section>
-
-      {/* CATEGORY RAIL + SEARCH */}
-      <section className="py-6 border-b border-[#E8DFD2]">
-        <div className="container-site">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            {/* Category chips - horizontal scroll on mobile */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 sm:pb-0">
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 ${
-                  selectedCategory === null
-                    ? "bg-[#7A1F2B] text-white shadow-md"
-                    : "bg-white text-[#6B5F52] border border-[#E8DFD2] hover:border-[#7A1F2B] hover:text-[#7A1F2B]"
-                }`}
-              >
-                Dhammaan
-              </button>
-              {categories.map((cat) => (
+          <nav aria-label="Qaybaha" className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            <button
+              onClick={() => setCategory(null)}
+              className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${
+                !activeCategory
+                  ? "bg-[#201B16] text-white border-[#201B16]"
+                  : "bg-white text-[#6B5F52] border-[#E8DFD2] hover:border-[#201B16] hover:text-[#201B16]"
+              }`}
+            >
+              Dhammaan
+            </button>
+            {categories.map((cat) => {
+              const theme = getCategoryTheme(cat.name);
+              const isActive = activeCategory?.name.toLowerCase() === cat.name.toLowerCase();
+              return (
                 <button
                   key={cat.slug}
-                  onClick={() => setSelectedCategory(cat.name)}
-                  className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all duration-200 ${
-                    selectedCategory === cat.name
-                      ? "bg-[#7A1F2B] text-white shadow-md"
-                      : "bg-white text-[#6B5F52] border border-[#E8DFD2] hover:border-[#7A1F2B] hover:text-[#7A1F2B]"
+                  onClick={() => setCategory(cat.name)}
+                  className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${
+                    isActive
+                      ? `${theme.bg} ${theme.text} ${theme.border}`
+                      : "bg-white text-[#6B5F52] border-[#E8DFD2] hover:border-[#201B16] hover:text-[#201B16]"
                   }`}
                 >
-                  {cat.name} ({cat.count})
+                  {cat.name}
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
 
-            {/* Search input */}
-            <div className="relative min-w-[200px]">
-              <input
-                type="search"
-                placeholder="Raadi maqaal..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2.5 pr-10 rounded-xl border border-[#E8DFD2] bg-white text-sm font-medium text-[#201B16] placeholder-[#6B5F52]/60 focus:outline-none focus:ring-2 focus:ring-[#7A1F2B]/20 focus:border-[#7A1F2B] transition-all"
-                aria-label="Raadi maqaal"
-              />
-              <svg
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B5F52]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+      {/* ── HEADER / MASTHEAD / CATEGORY HERO ── */}
+      {activeCategory ? (
+        <header className={`${activeTheme.bg} pt-12 pb-14 relative overflow-hidden transition-colors duration-500`}>
+          <div className="absolute inset-0 bg-black/10 mix-blend-multiply pointer-events-none" />
+          <div className="container-site relative z-10 text-center md:text-left">
+            <button 
+              onClick={() => setCategory(null)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-white/70 hover:text-white transition-colors mb-4"
+            >
+              <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+              Ku noqo dhammaan
+            </button>
+            <h1 className="font-display text-[40px] md:text-[56px] font-extrabold text-white leading-tight mb-4">
+              {activeCategory.name}
+            </h1>
+            <div className="flex items-center justify-center md:justify-start gap-3">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white/15 text-white border border-white/20 backdrop-blur-sm">
+                {activeCategory.count} Qoraal
+              </span>
+              <button 
+                onClick={() => setCategory(null)}
+                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/10 text-white hover:bg-white hover:text-black transition-colors"
+                aria-label="Clear filter"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
+        </header>
+      ) : (
+        <header className="pt-12 pb-10 border-b-4 border-double border-[#201B16]/10 mb-10">
+          <div className="container-site text-center">
+            <div className="flex items-center justify-center gap-4 text-[10px] font-bold uppercase tracking-widest text-[#7A1F2B] mb-6">
+              <span>{new Date().toLocaleDateString('so-SO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            </div>
+            <h1 className="font-display text-[48px] sm:text-[64px] md:text-[80px] font-extrabold text-[#201B16] leading-[0.9] tracking-tight mb-6">
+              Blog-ga IsmailBooks
+            </h1>
+            <p className="font-serif italic text-lg md:text-xl text-[#6B5F52] max-w-2xl mx-auto mb-8">
+              Falanqayn qoto dheer oo ku saabsan cilmi-nafsiga, falsafadda, iyo nolosha — laga soo dheegtay buugaagta ugu wanaagsan dunida.
+            </p>
+            <div className="flex items-center justify-center gap-4 text-xs font-semibold text-[#1F3A54]">
+              <span>{initialPosts.length} Qoraal</span>
+              <span className="text-[#C9962E]">•</span>
+              <span>{categories.length} Qaybood</span>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* ── DESKTOP CHIP RAIL (Only visible if no category is active) ── */}
+      {!activeCategory && (
+        <div className="hidden md:block container-site mb-12">
+          <nav aria-label="Qaybaha (Desktop)" className="flex flex-wrap items-center justify-center gap-2">
+            <button
+              onClick={() => setCategory(null)}
+              className="px-4 py-2 rounded-full text-xs font-bold bg-[#201B16] text-white border border-[#201B16] transition-colors"
+            >
+              Dhammaan
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.slug}
+                onClick={() => setCategory(cat.name)}
+                className="px-4 py-2 rounded-full text-xs font-bold bg-white text-[#6B5F52] border border-[#E8DFD2] hover:border-[#201B16] hover:text-[#201B16] transition-colors"
+              >
+                {cat.name}
+              </button>
+            ))}
+          </nav>
         </div>
-      </section>
+      )}
 
-      {/* MAIN CONTENT GRID */}
-      <div className="container-site py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-10">
-          {/* LEFT COLUMN */}
-          <div>
-            {/* FEATURED ESSAY - MAQAALKA TODOBAADKA */}
-            {featuredPost && (
-              <article className="mb-12">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="badge badge-navy text-xs font-bold">
-                    Maqaalka Todobaadka
-                  </span>
-                  {featuredPost.categoryName && (
-                    <>
-                      <span className="text-[#E8DFD2]">/</span>
-                      <span className="text-xs font-bold text-[#6B5F52] uppercase tracking-wide">
-                        {featuredPost.categoryName}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                <div className="surface-card p-0 overflow-hidden">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_280px]">
-                    {/* Left content */}
-                    <div className="p-8 sm:p-10 md:p-12 flex flex-col justify-center">
-                      <h2 className="font-display text-[32px] sm:text-[40px] md:text-[48px] font-extrabold text-[#201B16] leading-tight mb-4 group-hover:text-[#7A1F2B] transition-colors">
-                        <Link
-                          href={`/blog/${featuredPost.slug}`}
-                          className="no-underline relative inline-block"
-                        >
-                          {featuredPost.title}
-                          <span className="absolute bottom-1 left-0 w-0 h-[3px] bg-[#C9962E] transition-all duration-300 group-hover:w-full" />
-                        </Link>
+      {/* ── MAIN CONTENT ── */}
+      <div className="container-site">
+        
+        {/* EMPTY STATE */}
+        {filteredPosts.length === 0 ? (
+          <div className="py-32 text-center">
+            <h2 className="font-display text-3xl font-bold text-[#201B16] mb-4">Qoraal wali majiro qaybtan</h2>
+            <button 
+              onClick={() => setCategory(null)}
+              className="btn btn-secondary inline-flex items-center gap-2"
+            >
+              <ArrowRight className="w-4 h-4 rotate-180" />
+              Soo bandhig dhammaan
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-12 xl:gap-20">
+            
+            {/* LEFT COLUMN: Posts */}
+            <div className="flex flex-col gap-10">
+              
+              {/* FEATURED ESSAY */}
+              {firstPost && (
+                <article className="group relative rounded-[2rem] overflow-hidden bg-white border border-[#E8DFD2] shadow-sm hover:shadow-md transition-shadow">
+                  <Link href={`/blog/${firstPost.slug}`} className="absolute inset-0 z-10">
+                    <span className="sr-only">Akhri {firstPost.title}</span>
+                  </Link>
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_30%]">
+                    <div className="p-8 sm:p-12 flex flex-col justify-center">
+                      <div className="flex items-center gap-3 mb-6">
+                        <span className="text-[#C9962E] text-[10px] font-extrabold uppercase tracking-widest">Maqaalka Todobaadka</span>
+                        <span className="w-8 h-px bg-[#E8DFD2]" />
+                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${getCategoryTheme(firstPost.categoryName).tint}`}>
+                          {firstPost.categoryName || "Blog"}
+                        </span>
+                      </div>
+                      <h2 className="font-display text-3xl sm:text-[42px] leading-tight font-extrabold text-[#201B16] mb-5">
+                        <span className="bg-left-bottom bg-gradient-to-r from-[#C9962E]/30 to-[#C9962E]/30 bg-[length:0%_6px] bg-no-repeat group-hover:bg-[length:100%_6px] transition-all duration-500 ease-out">
+                          {firstPost.title}
+                        </span>
                       </h2>
-
-                      {featuredPost.excerpt && (
-                        <p className="font-serif italic text-base sm:text-lg text-[#6B5F52] leading-relaxed mb-6 line-clamp-3">
-                          {featuredPost.excerpt}
+                      {firstPost.excerpt && (
+                        <p className="font-serif italic text-lg text-[#6B5F52] leading-relaxed mb-8 line-clamp-3">
+                          {firstPost.excerpt}
                         </p>
                       )}
-
-                      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-[#6B5F52] mb-6">
-                        <span className="inline-flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-full bg-[#1F3A54] text-white text-[10px] font-extrabold grid place-items-center">
-                            IB
-                          </span>
-                          <span>Ismail Books</span>
+                      <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-[#6B5F52] mt-auto">
+                        <span>{firstPost.createdAt ? new Date(firstPost.createdAt).toLocaleDateString("so-SO", { day: "numeric", month: "short", year: "numeric" }) : ""}</span>
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#C9962E]" />
+                          {firstPost.estimatedReadTime || 5} min
                         </span>
-                        <span className="text-[#E8DFD2]">|</span>
-                        {formattedDate(featuredPost.createdAt)}
-                        <span className="text-[#E8DFD2]">|</span>
-                        {featuredPost.estimatedReadTime && (
-                          <span className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-[#C9962E]" />
-                            {featuredPost.estimatedReadTime} daqiiqo akhris
-                          </span>
-                        )}
-                        {featuredPost.viewCount !== null && (
-                          <>
-                            <span className="text-[#E8DFD2]">|</span>
-                            <span>{featuredPost.viewCount} aragti</span>
-                          </>
-                        )}
+                        <span className="relative z-20 ml-auto btn btn-primary py-2 px-5 bg-[#201B16] hover:bg-[#7A1F2B] transition-colors border-none">
+                          Akhri Maqaalka
+                        </span>
                       </div>
-
-                      <Link
-                        href={`/blog/${featuredPost.slug}`}
-                        className="btn btn-primary w-fit"
-                      >
-                        Akhri Maqaalka
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
                     </div>
-
-                    {/* Right decorative panel - desktop only */}
-                    <div className="hidden md:block bg-[#1F3A54] relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-br from-[#1F3A54] to-[#2a4d70]" />
-                      <div className="relative z-10 h-full flex flex-col items-center justify-center p-8">
-                        <Quote className="w-16 h-16 text-[#C9962E]/30 mb-4" />
-                        {featuredPost.estimatedReadTime && (
-                          <div className="text-center">
-                            <span className="block font-display text-[56px] font-extrabold text-[#C9962E] leading-none">
-                              {featuredPost.estimatedReadTime}
-                            </span>
-                            <span className="block text-sm font-semibold text-white/80 uppercase tracking-wider mt-2">
-                              Daqiiqo Akhris
-                            </span>
-                          </div>
-                        )}
+                    {/* Decorative Panel Desktop */}
+                    <div className={`hidden md:flex relative ${getCategoryTheme(firstPost.categoryName).bg} items-center justify-center overflow-hidden`}>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/5 font-display text-[300px] leading-none font-bold select-none">
+                        &rdquo;
+                      </div>
+                      <div className="relative z-10 text-center">
+                        <Clock className="w-8 h-8 text-[#C9962E] mx-auto mb-2 opacity-80" />
+                        <div className="text-white font-bold text-xl">{firstPost.estimatedReadTime || 5} min</div>
+                        <div className="text-white/60 text-xs font-semibold uppercase tracking-widest mt-1">Akhris</div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </article>
-            )}
+                </article>
+              )}
 
-            {/* POSTS LIST - Magazine contents style */}
-            <section>
-              <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-[#E8DFD2]">
-                <h2 className="font-display text-2xl font-extrabold text-[#201B16]">
-                  Qoraallada Ugu Dambeeyay
-                </h2>
-                <span className="text-xs font-bold text-[#6B5F52] uppercase tracking-widest">
-                  {listPosts.length} Qoraal
-                </span>
-              </div>
-
-              {listPosts.length > 0 ? (
-                <div className="space-y-0 divide-y divide-[#E8DFD2]">
-                  {listPosts.map((post, index) => (
-                    <article
-                      key={post.id}
-                      className="group py-6 first:pt-0 last:pb-0"
-                    >
-                      <Link
-                        href={`/blog/${post.slug}`}
-                        className="no-underline block"
-                      >
-                        <div className="flex items-start gap-4 sm:gap-6">
-                          {/* Ghost number */}
-                          <span className="font-display text-[40px] sm:text-[48px] font-bold text-[#E8DFD2] leading-none shrink-0 group-hover:text-[#C9962E] transition-colors">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-
-                          {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              {post.categoryName && (
-                                <span className="badge badge-navy text-[10px]">
-                                  {post.categoryName}
-                                </span>
-                              )}
-                            </div>
-
-                            <h3 className="font-display text-xl sm:text-2xl font-bold text-[#201B16] leading-snug mb-2 group-hover:text-[#7A1F2B] transition-colors relative inline-block">
+              {/* LIST OF REST POSTS */}
+              {restPosts.length > 0 && (
+                <div className="flex flex-col">
+                  {restPosts.map((post, index) => {
+                    const theme = getCategoryTheme(post.categoryName);
+                    return (
+                      <article key={post.id} className="group relative py-8 border-b border-[#E8DFD2] last:border-0 flex gap-6 sm:gap-8 items-start">
+                        <Link href={`/blog/${post.slug}`} className="absolute inset-0 z-10">
+                          <span className="sr-only">Akhri {post.title}</span>
+                        </Link>
+                        
+                        {/* Ghost Number */}
+                        <div className="hidden sm:block text-[40px] font-display font-bold leading-none text-[#E8DFD2] group-hover:text-opacity-0 transition-colors shrink-0 w-12" style={{ color: "var(--ghost-color, #E8DFD2)", transition: "color 0.3s" }} >
+                          {(index + 2).toString().padStart(2, "0")}
+                        </div>
+                        
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${theme.tint}`}>
+                              {post.categoryName || "Blog"}
+                            </span>
+                            <span className="text-[11px] font-semibold text-[#6B5F52]">
+                              {post.createdAt ? new Date(post.createdAt).toLocaleDateString("so-SO", { day: "numeric", month: "short", year: "numeric" }) : ""}
+                            </span>
+                          </div>
+                          
+                          <h3 className="font-display text-xl sm:text-2xl font-bold text-[#201B16] leading-snug mb-3 pr-8">
+                            <span className="bg-left-bottom bg-gradient-to-r from-[#7A1F2B]/30 to-[#7A1F2B]/30 bg-[length:0%_3px] bg-no-repeat group-hover:bg-[length:100%_3px] transition-all duration-300 ease-out">
                               {post.title}
-                              <span className="absolute bottom-0.5 left-0 w-0 h-[2px] bg-[#7A1F2B] transition-all duration-300 group-hover:w-full" />
-                            </h3>
-
-                            {post.excerpt && (
-                              <p className="text-sm text-[#6B5F52] font-serif line-clamp-2 mb-3 leading-relaxed">
-                                {post.excerpt}
-                              </p>
-                            )}
-
-                            {/* Consistent meta line */}
-                            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-[#6B5F52]">
-                              {formattedDate(post.createdAt)}
-                              <span className="text-[#E8DFD2]">•</span>
-                              {post.estimatedReadTime && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-[#C9962E]" />
-                                  {post.estimatedReadTime} daqiiqo
-                                </span>
-                              )}
-                              {post.viewCount !== null && (
-                                <>
-                                  <span className="text-[#E8DFD2]">•</span>
-                                  <span>{post.viewCount} aragti</span>
-                                </>
-                              )}
-                              <span className="ml-auto inline-flex items-center gap-1 text-[#1F3A54] opacity-0 group-hover:opacity-100 transition-opacity">
-                                Akhri
-                                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                            </span>
+                          </h3>
+                          
+                          {post.excerpt && (
+                            <p className="text-sm sm:text-base text-[#6B5F52] font-serif italic line-clamp-2 leading-relaxed mb-4">
+                              {post.excerpt}
+                            </p>
+                          )}
+                          
+                          <div className="flex items-center gap-4 text-xs font-semibold text-[#6B5F52]">
+                            <span className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-[#C9962E]" />
+                              {post.estimatedReadTime || 5} min
+                            </span>
+                            {post.viewCount !== null && (
+                              <span className="flex items-center gap-1.5">
+                                <Eye className="w-3.5 h-3.5 text-[#6B5F52]" />
+                                {post.viewCount} views
                               </span>
-                            </div>
+                            )}
                           </div>
                         </div>
-                      </Link>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                /* Empty state */
-                <div className="py-16 text-center surface-card">
-                  <h3 className="font-display text-xl font-bold text-[#201B16] mb-2">
-                    Lama helin qoraallo
-                  </h3>
-                  <p className="text-[#6B5F52] text-sm">
-                    Isku day inaad bedesho qaybta ama raqditaanka.
-                  </p>
-                  {(selectedCategory || searchQuery) && (
-                    <button
-                      onClick={() => {
-                        setSelectedCategory(null);
-                        setSearchQuery("");
-                      }}
-                      className="mt-4 text-sm font-bold text-[#7A1F2B] hover:underline"
-                    >
-                      Tirtir wax walba
-                    </button>
-                  )}
+                        
+                        {/* Hover Arrow Nudge */}
+                        <div className="mt-2 text-[#E8DFD2] group-hover:text-[#1F3A54] transition-colors transform group-hover:translate-x-1 duration-300">
+                          <ArrowUpRight className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        
+                        {/* Inline styles to inject the category hex on hover for the ghost number */}
+                        <style>{`
+                          article:hover .text-\\[\\#E8DFD2\\] { color: ${theme.hex}20 !important; }
+                        `}</style>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
-            </section>
-          </div>
+            </div>
 
-          {/* RIGHT SIDEBAR - Sticky on desktop */}
-          <aside className="hidden lg:block space-y-6">
-            <div className="sticky top-24 space-y-6">
-              {/* Categories vertical list */}
-              <div className="surface-card">
-                <h3 className="font-display text-lg font-bold text-[#201B16] mb-4 pb-3 border-b border-[#E8DFD2]">
-                  Qaybaha
-                </h3>
-                <ul className="space-y-2">
-                  <li>
-                    <button
-                      onClick={() => setSelectedCategory(null)}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                        selectedCategory === null
-                          ? "bg-[#7A1F2B]/10 text-[#7A1F2B]"
-                          : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
-                      }`}
-                    >
-                      <span className="flex items-center justify-between">
-                        <span>Dhammaan</span>
-                        <span className="text-xs text-[#6B5F52]">
-                          {posts.length}
-                        </span>
-                      </span>
-                    </button>
-                  </li>
-                  {categories.map((cat) => (
-                    <li key={cat.slug}>
-                      <button
-                        onClick={() => setSelectedCategory(cat.name)}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                          selectedCategory === cat.name
-                            ? "bg-[#7A1F2B]/10 text-[#7A1F2B]"
-                            : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
+            {/* RIGHT COLUMN: Sidebar (Sticky on Desktop) */}
+            <aside className="hidden lg:block relative">
+              <div className="sticky top-8 flex flex-col gap-10">
+                
+                {/* Qaybaha List */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#E8DFD2] shadow-sm">
+                  <h3 className="font-display text-lg font-bold text-[#201B16] mb-6 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#C9962E]" /> Qaybaha
+                  </h3>
+                  <ul className="flex flex-col gap-2">
+                    <li>
+                      <button 
+                        onClick={() => setCategory(null)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                          !activeCategory ? "bg-[#201B16] text-white" : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
                         }`}
                       >
-                        <span className="flex items-center justify-between">
-                          <span>{cat.name}</span>
-                          <span className="text-xs text-[#6B5F52]">{cat.count}</span>
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {!activeCategory && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          Dhammaan
+                        </div>
+                        <span className={!activeCategory ? "text-white/60" : "text-[#E8DFD2]"}>{initialPosts.length}</span>
                       </button>
                     </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Follow card */}
-              <div className="surface-card bg-gradient-to-br from-[#FBF7F0] to-white border-[#E8DFD2]">
-                <h3 className="font-display text-lg font-bold text-[#201B16] mb-2">
-                  Raac IsmailBooks
-                </h3>
-                <p className="text-xs text-[#6B5F52] mb-4 leading-relaxed">
-                  Qoraal cusub todobaad kasta. Hel warbixinno cusub oo ku saabsan
-                  falsafadda iyo cilmi-nafsiga.
-                </p>
-                <a
-                  href="https://wa.me/252636475579"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-primary w-full text-sm"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </a>
-              </div>
-
-              {/* Commerce bridge - Related books */}
-              {relatedBooks.length > 0 && (
-                <div className="surface-card">
-                  <h3 className="font-display text-lg font-bold text-[#201B16] mb-4 pb-3 border-b border-[#E8DFD2]">
-                    Buugaag la xiriira
-                  </h3>
-                  <ul className="space-y-3">
-                    {relatedBooks.slice(0, 2).map((book) => (
-                      <li key={book.id}>
-                        <Link
-                          href={`/books/${book.slug}`}
-                          className="flex items-center gap-3 group no-underline"
-                        >
-                          <div className="w-12 h-16 rounded bg-[#E8DFD2] overflow-hidden shrink-0">
-                            {book.coverImage ? (
-                              <img
-                                src={book.coverImage}
-                                alt={book.title}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-gradient-to-br from-[#1F3A54] to-[#7A1F2B]" />
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-[#201B16] group-hover:text-[#7A1F2B] transition-colors line-clamp-2 leading-snug">
-                              {book.title}
-                            </p>
-                            {book.price && (
-                              <p className="text-xs font-semibold text-[#C9962E] mt-1">
-                                ${book.price.toFixed(2)}
-                              </p>
-                            )}
-                          </div>
-                        </Link>
-                      </li>
-                    ))}
+                    {categories.map((cat) => {
+                      const theme = getCategoryTheme(cat.name);
+                      const isActive = activeCategory?.name.toLowerCase() === cat.name.toLowerCase();
+                      return (
+                        <li key={cat.slug}>
+                          <button 
+                            onClick={() => setCategory(cat.name)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                              isActive ? `${theme.bg} text-white` : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              {isActive ? (
+                                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: theme.hex }} />
+                              )}
+                              {cat.name}
+                            </div>
+                            <span className={isActive ? "text-white/60" : "text-[#E8DFD2]"}>{cat.count}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
-                  <Link
-                    href="/books"
-                    className="block mt-4 text-xs font-bold text-[#1F3A54] hover:text-[#7A1F2B] transition-colors"
-                  >
-                    Eeg buugaagta oo dhan →
-                  </Link>
                 </div>
-              )}
 
-              {/* Quote card */}
-              <div className="surface-card bg-[#FBF7F0] border-[#E8DFD2]">
-                <Quote className="w-6 h-6 text-[#C9962E] mb-3" />
-                <blockquote className="font-serif italic text-sm text-[#6B5F52] leading-relaxed mb-3">
-                  "Aqoontu waa iftiinka nolosha; buugguna waa furaha aqoonta."
-                </blockquote>
-                <cite className="text-xs font-bold text-[#201B16] not-italic">
-                  — Ismail Books
-                </cite>
+                {/* Quote Card */}
+                <div className="bg-[#1F3A54] rounded-3xl p-8 sm:p-10 text-white relative overflow-hidden">
+                  <div className="absolute -top-6 -left-6 text-white/10 font-display text-9xl leading-none font-bold select-none">
+                    &ldquo;
+                  </div>
+                  <div className="relative z-10">
+                    <p className="font-serif italic text-lg leading-relaxed text-white/90 mb-4">
+                      Akhrisku maaha uun in aad aragto waraaqo, ee waa in aad maskaxdaada ku quudiso aqoonta ifaysa nolosha.
+                    </p>
+                    <div className="text-xs font-bold uppercase tracking-widest text-[#C9962E]">IsmailBooks</div>
+                  </div>
+                </div>
+
               </div>
-            </div>
-          </aside>
-        </div>
+            </aside>
+            
+          </div>
+        )}
       </div>
-
-      {/* Mobile-only sidebar (stacked at bottom) */}
-      <div className="lg:hidden container-site pb-12 space-y-6">
-        {/* Categories */}
-        <div className="surface-card">
-          <h3 className="font-display text-lg font-bold text-[#201B16] mb-4 pb-3 border-b border-[#E8DFD2]">
-            Qaybaha
-          </h3>
-          <ul className="space-y-2">
-            <li>
-              <button
-                onClick={() => setSelectedCategory(null)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                  selectedCategory === null
-                    ? "bg-[#7A1F2B]/10 text-[#7A1F2B]"
-                    : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
-                }`}
-              >
-                <span className="flex items-center justify-between">
-                  <span>Dhammaan</span>
-                  <span className="text-xs text-[#6B5F52]">{posts.length}</span>
-                </span>
-              </button>
-            </li>
-            {categories.map((cat) => (
-              <li key={cat.slug}>
-                <button
-                  onClick={() => setSelectedCategory(cat.name)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                    selectedCategory === cat.name
-                      ? "bg-[#7A1F2B]/10 text-[#7A1F2B]"
-                      : "text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#201B16]"
-                  }`}
-                >
-                  <span className="flex items-center justify-between">
-                    <span>{cat.name}</span>
-                    <span className="text-xs text-[#6B5F52]">{cat.count}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Follow card mobile */}
-        <div className="surface-card bg-gradient-to-br from-[#FBF7F0] to-white border-[#E8DFD2]">
-          <h3 className="font-display text-lg font-bold text-[#201B16] mb-2">
-            Raac IsmailBooks
-          </h3>
-          <p className="text-xs text-[#6B5F52] mb-4 leading-relaxed">
-            Qoraal cusub todobaad kasta.
-          </p>
-          <a
-            href="https://wa.me/252636475579"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary w-full text-sm"
-          >
-            <MessageCircle className="w-4 h-4" />
-            WhatsApp
-          </a>
-        </div>
-
-        {/* Quote card mobile */}
-        <div className="surface-card bg-[#FBF7F0] border-[#E8DFD2]">
-          <Quote className="w-6 h-6 text-[#C9962E] mb-3" />
-          <blockquote className="font-serif italic text-sm text-[#6B5F52] leading-relaxed mb-3">
-            "Aqoontu waa iftiinka nolosha; buugguna waa furaha aqoonta."
-          </blockquote>
-          <cite className="text-xs font-bold text-[#201B16] not-italic">
-            — Ismail Books
-          </cite>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
