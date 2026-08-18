@@ -52,15 +52,8 @@ async function handleMiddleware(request: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
 
-    // Auth routes
-    const authRoutes = ['/login', '/register', '/forgot-password', '/auth/reset-password']
-    const isAuthRoute = authRoutes.some(route => pathname.startsWith(route))
-
-    if (isAuthRoute && hasSession) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/dashboard'
-      return NextResponse.redirect(redirectUrl)
-    }
+    // Auth routes redirection is now handled by src/app/(auth)/layout.tsx
+    // to avoid infinite loops when a stale NextAuth cookie exists.
   } catch {
     // If anything fails in session refresh, continue request gracefully
   }

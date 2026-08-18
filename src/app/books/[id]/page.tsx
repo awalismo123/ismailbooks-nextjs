@@ -103,6 +103,22 @@ export default async function BookDetailPage({
     userReview = data;
   }
 
+  // Fetch reading progress (for Continue Reading card)
+  let readingProgress: { chapterIndex: number; chapterTitle?: string } | null = null;
+  if (currentUser && (userOwnsBook || !isPaid)) {
+    const { data: progRow } = await adminSupabase
+      .from("reading_progress")
+      .select("chapter_index, scroll_position")
+      .eq("book_id", book.id)
+      .eq("auth_user_id", currentUser.id)
+      .order("last_read", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (progRow && (progRow.chapter_index > 0 || (progRow.scroll_position ?? 0) > 120)) {
+      readingProgress = { chapterIndex: progRow.chapter_index ?? 0 };
+    }
+  }
+
   // Fetch TOC from storage
   let tocItems: { title: string; file: string }[] = [];
   try {
@@ -312,6 +328,28 @@ export default async function BookDetailPage({
                 )}
               </div>
 
+              {/* ── Continue Reading card ── */}
+              {readingProgress !== null && (
+                <div className="flex items-center justify-between gap-4 rounded-2xl border border-[#C9962E]/30 bg-[#FFFBF2] px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#C9962E]">Akhriska gudaha</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-[#201B16]">
+                      Cutub {readingProgress.chapterIndex + 1}
+                      {tocItems[readingProgress.chapterIndex]?.title
+                        ? ` · ${tocItems[readingProgress.chapterIndex].title}`
+                        : ""}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/books/${book.id}/read?chapter=${readingProgress.chapterIndex}&returnTo=${buildReturnTarget(`/books/${book.id}`)}`}
+                    className="btn btn-primary shrink-0 !py-2 !px-4 !text-xs"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Sii wad
+                  </Link>
+                </div>
+              )}
+
               {/* ── Buy box ── */}
               <div className="rounded-2xl border border-[#E8DFD2] bg-white p-5 shadow-sm sm:p-6">
                 {/* Price + methods */}
@@ -515,8 +553,8 @@ export default async function BookDetailPage({
 
       {/* ══════════ STICKY MOBILE CTA ══════════ */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8DFD2] bg-white/95 p-3 backdrop-blur-md lg:hidden">
-        <div className="container-site flex items-center justify-between gap-3">
-          <div>
+        <div className="container-site flex items-center justify-between gap-2">
+          <div className="min-w-[4.5rem] shrink-0">
             <span className="block text-[10px] font-semibold text-[#6B5F52]">
               {isPaid ? "Qiimaha" : "Bilaash"}
             </span>
@@ -532,16 +570,29 @@ export default async function BookDetailPage({
                 className="btn btn-success flex-1"
               >
                 <BookOpen className="h-4 w-4" />
-                akhriso bugaaga / read your book
+                Akhriso
               </Link>
             ) : (
-              <Link
-                href={`/payment/${book.id}`}
-                className="btn btn-primary flex-1"
-              >
-                <CreditCard className="h-4 w-4" />
-                Iibso Hadda
-              </Link>
+              <div className="flex flex-1 gap-2 min-w-0">
+                <Link
+                  href={`/books/${book.id}/read?preview=true&returnTo=${buildReturnTarget(`/books/${book.id}`)}`}
+                  className="btn btn-secondary flex-1 !px-2"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  Preview
+                </Link>
+                <Link
+                  href={
+                    currentUser
+                      ? `/payment/${book.id}`
+                      : `/login?redirect=${encodeURIComponent(`/books/${book.id}`)}`
+                  }
+                  className="btn btn-primary flex-1 !px-2"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Iibso
+                </Link>
+              </div>
             )
           ) : (
             <Link

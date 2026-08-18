@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter, Lora } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/i18n";
@@ -23,6 +23,7 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ismailbooks.com"),
   title: "IsmailBooks — Buugaag, Kooban & Aqoon Af-Soomaali",
   description:
     "Maktabad dhijitaal ah oo Af-Soomaali ah: buugaagta cilmi-nafsiga, falsafadda iyo horumarinta nafta. Akhriso, iibso, oo kobci aqoontaada.",
@@ -70,12 +71,13 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
-  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FBF7F0" },
     { media: "(prefers-color-scheme: dark)", color: "#201B16" },
@@ -92,6 +94,8 @@ export default function RootLayout({
       lang="so"
       dir="ltr"
       className={`${inter.variable} ${fraunces.variable} ${lora.variable} h-full antialiased selection:bg-[#7A1F2B] selection:text-white`}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
     >
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -100,7 +104,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="format-detection" content="telephone=no" />
       </head>
-      <body className="min-h-full flex flex-col bg-[#FBF7F0] text-[#201B16]">
+      <body className="min-h-full flex flex-col bg-[#FBF7F0] text-[#201B16]" suppressHydrationWarning>
         <AuthProvider>
           <LanguageProvider>{children}</LanguageProvider>
         </AuthProvider>

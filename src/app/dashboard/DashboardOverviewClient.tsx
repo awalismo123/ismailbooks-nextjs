@@ -211,7 +211,7 @@ export default function DashboardOverviewClient({
             )}
             <span className={`w-2 h-2 rounded-full inline-block ${realtimeStatus === "live" ? "bg-emerald-400 animate-pulse" : realtimeStatus === "error" ? "bg-rose-400" : "bg-amber-400"}`} title={realtimeStatus === "live" ? "Live sync active" : "Connecting..."} />
           </div>
-          <p className="text-[#6B5F52] text-sm mt-1">{today}</p>
+          <p className="text-[#6B5F52] text-sm mt-1" suppressHydrationWarning>{today}</p>
         </div>
         <div className="flex items-center gap-2">
           <button

@@ -37,9 +37,10 @@ export default async function ReaderPage({
 
   const isPreviewMode = !authResult.canRead;
 
-  // 5. Resolve starting chapter:
+  // 5. Resolve starting chapter + scroll:
   //    Priority: ?chapter=X (explicit) > DB saved progress > 0
   let initialChapter = 0;
+  let initialScrollOffset = 0;
   if (!isPreviewMode && user) {
     if (chapterParam !== undefined && chapterParam !== "") {
       const parsed = parseInt(chapterParam, 10);
@@ -47,9 +48,9 @@ export default async function ReaderPage({
         initialChapter = parsed;
       }
     } else {
-      // Server-side progress fetch so chapter is correct even on refresh/direct URL
       const progress = await loadProgressAction(Number(bookId));
       initialChapter = progress?.chapterIndex ?? 0;
+      initialScrollOffset = progress?.scrollOffset ?? 0;
     }
   }
 
@@ -63,6 +64,7 @@ export default async function ReaderPage({
       isPaid={authResult.isPaid}
       returnTarget={returnTarget}
       initialChapter={initialChapter}
+      initialScrollOffset={initialScrollOffset}
     />
   );
 }

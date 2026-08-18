@@ -70,7 +70,7 @@ export default async function DashboardOverviewPage() {
   const booksMap = Object.fromEntries((booksData || []).map((b: any) => [b.id, b]));
 
   // ── TOC chapter counts ──────────────────────────────────────────────────────
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://gdsmqhhzddjixifznecx.supabase.co';
   const chapterCountsMap: Record<number, number> = {};
   await Promise.all(
     bookIds.map(async (bId) => {
