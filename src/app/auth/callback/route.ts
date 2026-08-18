@@ -19,6 +19,26 @@ export async function GET(request: Request) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
     
     if (!exchangeError) {
+      // Ensure profile row exists in Supabase for OAuth user
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const username = user.email ? user.email.split("@")[0] : `user_${user.id.slice(0, 6)}`;
+          await supabase.from("profiles").upsert(
+            {
+              id: user.id,
+              username: user.user_metadata?.full_name || user.user_metadata?.name || username,
+              full_name: user.user_metadata?.full_name || user.user_metadata?.name || username,
+              account_status: "active",
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" }
+          );
+        }
+      } catch (err) {
+        console.warn("Callback profile upsert warning:", err);
+      }
+
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocalEnv = process.env.NODE_ENV === "development";
       

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Copy, Check, MessageCircle, Sun, Moon, BookOpen } from "lucide-react";
+import { Copy, Check, MessageCircle, Sun, Moon, BookOpen, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 type Theme = "paper" | "sepia" | "night";
 
@@ -128,6 +129,19 @@ export function ArticleToolbar({
           overflow-x-auto no-scrollbar
         "
       >
+        {/* ── Back button ── */}
+        <Link
+          href="/blog"
+          className="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl bg-[#FBF7F0] border border-[#E8DFD2]/70 text-[#6B5F52] hover:bg-[#E8DFD2]/70 hover:text-[#201B16] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7A1F2B]"
+          aria-label="Ku noqo Qoraallada"
+          title="Ku noqo Qoraallada"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
+        
+        {/* ── Separator ── */}
+        <div className="hidden sm:block w-px h-6 bg-[#E8DFD2] shrink-0" aria-hidden="true" />
+
         {/* ── Font size ── */}
         <div
           className="flex items-center gap-0.5 shrink-0 bg-[#FBF7F0] rounded-xl px-1 py-0.5 border border-[#E8DFD2]/70"

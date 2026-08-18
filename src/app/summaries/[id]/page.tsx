@@ -112,12 +112,6 @@ export default async function SummaryDetailPage({
             )}
           </header>
 
-          <article className="surface-card space-y-6 text-sm text-[#201B16] leading-relaxed font-reader">
-            <div
-              className="prose max-w-none prose-headings:font-display prose-headings:font-extrabold prose-headings:text-[#7A1F2B] prose-p:leading-relaxed prose-p:mb-4"
-              dangerouslySetInnerHTML={{ __html: summary.content_html || "<p>Nuxurka soo-koobidda lagama helin.</p>" }}
-            />
-          </article>
 
           <div className="mt-12 surface-card flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>

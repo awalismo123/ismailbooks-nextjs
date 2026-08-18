@@ -9,7 +9,7 @@ import {
   ShieldCheck, Users, BookOpen, CreditCard, FileText, Check, X, Eye,
   TrendingUp, LayoutDashboard, LogOut, ExternalLink, Activity, Wallet,
   Image as ImageIcon, Ban, CheckCircle2, Library, Plus, Pencil, Trash2,
-  BookMarked, Sparkles, Search, Copy, Tag, Key, Lock
+  BookMarked, Sparkles, Search, Copy, Tag, Key, Lock, ArrowLeft
 } from "lucide-react";
 import { approvePaymentAction, rejectPaymentAction } from "@/app/actions/payment";
 import {
@@ -800,9 +800,20 @@ export default function AdminClient({ data }: { data: AdminData }) {
 
       {/* MOBILE TOP BAR */}
       <div className="lg:hidden sticky top-0 z-40 bg-[#14212E]">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2.5"><div className="w-8 h-8 rounded-lg bg-[#7A1F2B] text-white grid place-items-center font-display font-extrabold text-sm">IB</div><span className="font-display font-extrabold text-white">Admin</span></div>
-          <button onClick={handleSignOut} className="text-[#B7AC9D] p-2"><LogOut className="w-5 h-5" /></button>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/"
+              className="p-1 rounded-lg text-[#B7AC9D] hover:text-white hover:bg-white/10 transition-colors"
+              title="Ku noqo Goobta"
+              aria-label="Ku noqo Goobta"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div className="w-8 h-8 rounded-lg bg-[#7A1F2B] text-white grid place-items-center font-display font-extrabold text-sm">IB</div>
+            <span className="font-display font-extrabold text-white">Admin</span>
+          </div>
+          <button onClick={handleSignOut} className="text-[#B7AC9D] p-2" title="Ka bax" aria-label="Ka bax"><LogOut className="w-5 h-5" /></button>
         </div>
         <div className="flex gap-1.5 px-3 pb-3 overflow-x-auto">
           {tabs.map(t => (

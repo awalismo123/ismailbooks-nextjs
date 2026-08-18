@@ -69,7 +69,11 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       setLoading(true);
-      // NextAuth Google OAuth — handles everything locally via NEXTAUTH_URL
+      setError("");
+      // Use NextAuth Google sign-in as the single auth path.
+      // This handles the full OAuth flow and creates a valid NextAuth JWT session.
+      // The Supabase OAuth path created a Supabase-only session that NextAuth
+      // couldn't see, causing users to be bounced back to login after OAuth.
       await signIn("google", { callbackUrl: "/dashboard" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google login failed.";

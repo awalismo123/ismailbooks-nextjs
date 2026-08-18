@@ -20,10 +20,8 @@ export default function ReaderBackButton({
   const handleBack = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     
-    // Check if there is history to go back to within the application
-    if (typeof window !== "undefined" && window.history.length > 2) {
-      // router.back() respects browser back stack
-      router.push(returnTarget);
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
     } else {
       router.push(returnTarget);
     }

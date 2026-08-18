@@ -740,6 +740,17 @@ export default function BookReaderClient({
         ["--reader-line-height" as string]: String(LINE_HEIGHT[lineSpacing]),
       }}
     >
+      {/* Mobile Floating Back Button (Visible when header is hidden) */}
+      <div 
+        className={`md:hidden fixed top-3 left-3 z-50 transition-opacity duration-300 ${!chromeOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
+      >
+        <ReaderBackButton
+          returnTarget={returnTarget || `/books/${bookId}`}
+          className="shadow-md bg-white/90 backdrop-blur-sm !min-w-[40px] !min-h-[40px] !p-2 !justify-center !rounded-full border border-gray-200"
+          label=""
+        />
+      </div>
+
       {/* Header */}
       <header
         style={{

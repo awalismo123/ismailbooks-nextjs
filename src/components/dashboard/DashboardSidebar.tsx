@@ -91,12 +91,23 @@ export function DashboardSidebar({ username, email }: Props) {
 
       {/* ── MOBILE TOP BAR ── */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white border-b border-[#E8DFD2] z-40 flex items-center justify-between px-4">
-        <Link href="/" className="font-display font-extrabold text-[#7A1F2B] text-xl">
-          IsmailBooks
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/"
+            className="p-1.5 rounded-xl text-[#6B5F52] hover:bg-[#FBF7F0] hover:text-[#7A1F2B] transition-colors"
+            title="Ku noqo Goobta"
+            aria-label="Ku noqo Goobta"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <Link href="/" className="font-display font-extrabold text-[#7A1F2B] text-xl">
+            IsmailBooks
+          </Link>
+        </div>
         <button
           onClick={() => signOut({ callbackUrl: "/" })}
           className="p-2 text-[#6B5F52] hover:text-rose-600 transition-colors"
+          aria-label="Sign Out"
         >
           <LogOut className="w-5 h-5" />
         </button>

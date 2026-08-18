@@ -59,7 +59,19 @@ export default function RegisterPage() {
   const handleGoogleRegister = async () => {
     try {
       setLoading(true);
-      await signIn("google", { callbackUrl: "/dashboard" });
+      const supabase = createClient();
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${origin}/auth/callback`,
+        },
+      });
+
+      if (error) {
+        await signIn("google", { callbackUrl: "/dashboard" });
+      }
     } catch (err: any) {
       setError(err.message || "Google registration failed.");
       setLoading(false);

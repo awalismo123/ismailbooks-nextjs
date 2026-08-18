@@ -152,72 +152,76 @@ export default function SummaryReaderClient({
       {/* ── HEADER ── */}
       <header
         style={{ background: "var(--reader-bg)", borderBottom: "1px solid var(--reader-border)" }}
-        className="sticky top-0 z-40 px-4 py-3 flex items-center justify-between backdrop-blur-md"
+        className="sticky top-0 z-40 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2 backdrop-blur-md"
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <ReaderBackButton returnTarget={returnTarget || `/summaries/${summaryId}`} />
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 shrink">
+          <ReaderBackButton returnTarget={returnTarget || `/summaries/${summaryId}`} className="!min-w-[36px] !min-h-[36px] sm:!min-w-[44px] sm:!min-h-[44px] !justify-center shrink-0" />
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <h1
                 style={{ color: "var(--reader-heading)" }}
-                className="font-display text-sm font-extrabold truncate max-w-[180px] sm:max-w-sm md:max-w-lg"
+                className="font-display text-xs sm:text-sm font-extrabold truncate max-w-[130px] sm:max-w-xs md:max-w-md"
               >
                 {summaryTitle}
               </h1>
               {isPreview && (
-                <span className="shrink-0 rounded-full bg-[#C9962E]/20 text-[#C9962E] border border-[#C9962E]/40 px-2 py-0.5 text-[9px] font-extrabold uppercase">
+                <span className="shrink-0 rounded-full bg-[#C9962E]/20 text-[#C9962E] border border-[#C9962E]/40 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-extrabold uppercase">
                   Tijaabo
                 </span>
               )}
             </div>
             {bookTitle && (
-              <p style={{ color: "var(--reader-muted)" }} className="text-[11px] truncate max-w-[160px] sm:max-w-xs">
+              <p style={{ color: "var(--reader-muted)" }} className="text-[10px] sm:text-[11px] truncate max-w-[120px] sm:max-w-xs hidden sm:block">
                 Asal: {bookTitle} {bookAuthor ? `— ${bookAuthor}` : ""}
               </p>
             )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
           {/* Theme switcher */}
           <div
             style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="hidden sm:flex items-center rounded-xl p-1 gap-0.5"
+            className="flex items-center rounded-xl p-0.5 shrink-0"
           >
             {([
-              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5" />, label: "Light" },
-              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5" />, label: "Sepia" },
-              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5" />, label: "Night" },
+              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Light" },
+              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Sepia" },
+              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Night" },
             ]).map((opt) => (
               <button
                 key={opt.id}
+                type="button"
                 onClick={() => changeTheme(opt.id)}
                 title={opt.label}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all"
+                className="rounded-[9px] min-w-[28px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center transition-colors"
                 style={{
                   background: readerTheme === opt.id ? "var(--reader-accent)" : "transparent",
                   color: readerTheme === opt.id ? "#fff" : "var(--reader-muted)",
                 }}
+                aria-label={opt.label}
               >
                 {opt.icon}
-                <span className="hidden md:inline">{opt.label}</span>
               </button>
             ))}
           </div>
 
-          {/* Font Family */}
+          {/* Font Family (Desktop) */}
           <div
             style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="hidden md:flex items-center rounded-xl p-1 gap-0.5 text-[10px] font-bold"
+            className="hidden lg:flex items-center rounded-xl p-0.5 shrink-0 text-[10px] font-bold"
           >
             {(["serif", "sans", "mono"] as FontFamily[]).map((f) => (
               <button
                 key={f}
+                type="button"
                 onClick={() => changeFontFamily(f)}
-                className={`px-2 py-1 rounded-lg uppercase transition-all ${
-                  fontFamily === f ? "bg-[#7A1F2B] text-white" : "text-gray-500 hover:text-gray-800"
-                }`}
+                className="rounded-[10px] min-w-[44px] min-h-[36px] flex items-center justify-center gap-1 px-1.5 uppercase transition-colors"
+                style={{
+                  background: fontFamily === f ? "var(--reader-accent)" : "transparent",
+                  color: fontFamily === f ? "#fff" : "var(--reader-muted)",
+                }}
               >
                 {f}
               </button>
@@ -227,37 +231,41 @@ export default function SummaryReaderClient({
           {/* Font size */}
           <div
             style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="flex items-center rounded-xl overflow-hidden"
+            className="flex items-center rounded-xl shrink-0"
           >
             <button
+              type="button"
               onClick={() => changeFontSize(-2)}
-              style={{ color: "var(--reader-muted)" }}
-              className="px-2.5 py-1.5 text-xs font-bold hover:opacity-70 transition-opacity"
-              title="Yareey xarfaha"
+              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
+              title="Yaree xarfaha"
+              aria-label="Yaree xarfaha"
             >
-              <Minus className="w-3 h-3" />
+              <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
-            <span style={{ color: "var(--reader-accent)", borderLeft: "1px solid var(--reader-border)", borderRight: "1px solid var(--reader-border)" }} className="px-2 py-1.5 text-[11px] font-mono font-bold">
+            <span className="text-[11px] sm:text-[12px] font-mono font-bold text-[var(--reader-accent)] min-w-[20px] sm:min-w-[28px] text-center">
               {fontSize}
             </span>
             <button
+              type="button"
               onClick={() => changeFontSize(2)}
-              style={{ color: "var(--reader-muted)" }}
-              className="px-2.5 py-1.5 text-xs font-bold hover:opacity-70 transition-opacity"
-              title="Korodhsi xarfaha"
+              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
+              title="Kordhi xarfaha"
+              aria-label="Kordhi xarfaha"
             >
-              <Plus className="w-3 h-3" />
+              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
 
           {/* Fullscreen Toggle */}
           <button
+            type="button"
             onClick={toggleFullscreen}
-            style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)", color: "var(--reader-muted)" }}
-            className="p-2 rounded-xl transition-opacity hover:opacity-80 hidden sm:flex"
+            style={{ border: "1px solid var(--reader-border)", background: isFullscreen ? "var(--reader-accent)" : "var(--reader-surface)", color: isFullscreen ? "#fff" : "var(--reader-muted)" }}
+            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
             title="Shaashad Buuxda"
+            aria-label="Shaashad Buuxda"
           >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
           </button>
         </div>
       </header>
