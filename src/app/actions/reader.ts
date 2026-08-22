@@ -123,3 +123,210 @@ export async function loadProgressAction(
     completed: data.completed === 1 || data.completed === true,
   };
 }
+
+async function getCurrentUserIds() {
+  const user = await getCurrentUser();
+  if (!user) return null;
+
+  const supabase = await createAdminClient();
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("user_id")
+    .eq("email", user.email)
+    .maybeSingle();
+
+  return {
+    authUserId: user.id,
+    legacyUserId: userRow?.user_id ?? null,
+    supabase,
+  };
+}
+
+function buildUserOrFilter(authUserId: string, legacyUserId: number | null) {
+  return legacyUserId
+    ? `auth_user_id.eq.${authUserId},user_id.eq.${legacyUserId}`
+    : `auth_user_id.eq.${authUserId}`;
+}
+
+export async function syncBookmarksAction(formData: FormData) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return { synced: 0 };
+
+  const bookId = Number(formData.get("bookId"));
+  const rawItems = formData.get("items");
+  if (!bookId || !rawItems) return { synced: 0 };
+
+  let items: Array<Record<string, unknown>>;
+  try {
+    items = JSON.parse(String(rawItems));
+  } catch {
+    return { synced: 0 };
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return { synced: 0 };
+  }
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const remoteRows = await supabase
+    .from("bookmarks")
+    .select("id, chapter_index, chapter_title, preview_text")
+    .eq("book_id", bookId)
+    .or(buildUserOrFilter(authUserId, legacyUserId));
+
+  const existingKeySet = new Set(
+    (remoteRows.data ?? [])
+      .map((row) => {
+        const chapter = Number(row.chapter_index ?? 0);
+        const title = String(row.chapter_title ?? "");
+        const preview = String(row.preview_text ?? "");
+        return `${chapter}|${title.slice(0, 40)}|${preview.slice(0, 80)}`;
+      })
+      .filter(Boolean),
+  );
+
+  const payload = items
+    .map((item) => {
+      const chapterIndex = Number(item.chapterIndex ?? item.chapter_index ?? 0);
+      const chapterTitle = String(item.chapterTitle ?? item.chapter_title ?? `Cutubka ${chapterIndex + 1}`);
+      const previewText = String(item.previewText ?? item.preview_text ?? "");
+      const key = `${chapterIndex}|${chapterTitle.slice(0, 40)}|${previewText.slice(0, 80)}`;
+      if (existingKeySet.has(key)) return null;
+
+      return {
+        auth_user_id: authUserId,
+        user_id: legacyUserId,
+        book_id: bookId,
+        chapter_index: chapterIndex,
+        chapter_title: chapterTitle,
+        preview_text: previewText || null,
+        created_at: item.createdAt ? String(item.createdAt) : new Date().toISOString(),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (!payload.length) return { synced: 0 };
+
+  const { error } = await supabase.from("bookmarks").insert(payload);
+  if (error) {
+    return { synced: 0, error: error.message };
+  }
+
+  return { synced: payload.length };
+}
+
+export async function syncHighlightsAction(formData: FormData) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return { synced: 0 };
+
+  const bookId = Number(formData.get("bookId"));
+  const rawItems = formData.get("items");
+  if (!bookId || !rawItems) return { synced: 0 };
+
+  let items: Array<Record<string, unknown>>;
+  try {
+    items = JSON.parse(String(rawItems));
+  } catch {
+    return { synced: 0 };
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return { synced: 0 };
+  }
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const remoteRows = await supabase
+    .from("highlights")
+    .select("id, chapter_index, highlighted_text, color")
+    .eq("book_id", bookId)
+    .or(buildUserOrFilter(authUserId, legacyUserId));
+
+  const existingKeySet = new Set(
+    (remoteRows.data ?? [])
+      .map((row) => {
+        const chapter = Number(row.chapter_index ?? 0);
+        const text = String(row.highlighted_text ?? "");
+        const color = String(row.color ?? "gold");
+        return `${chapter}|${color}|${text.slice(0, 80)}`;
+      })
+      .filter(Boolean),
+  );
+
+  const payload = items
+    .map((item) => {
+      const chapterIndex = Number(item.chapterIndex ?? item.chapter_index ?? 0);
+      const text = String(item.text ?? item.highlighted_text ?? "");
+      const color = String(item.color ?? "gold");
+      const key = `${chapterIndex}|${color}|${text.slice(0, 80)}`;
+      if (existingKeySet.has(key)) return null;
+
+      return {
+        auth_user_id: authUserId,
+        user_id: legacyUserId,
+        book_id: bookId,
+        chapter_index: chapterIndex,
+        highlighted_text: text,
+        color: ["gold", "navy", "oxblood", "green"].includes(color) ? color : "gold",
+        created_at: item.createdAt ? String(item.createdAt) : new Date().toISOString(),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (!payload.length) return { synced: 0 };
+
+  const { error } = await supabase.from("highlights").insert(payload);
+  if (error) {
+    return { synced: 0, error: error.message };
+  }
+
+  return { synced: payload.length };
+}
+
+export async function loadBookmarksAction(bookId: number) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return [];
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const { data } = await supabase
+    .from("bookmarks")
+    .select("id, book_id, chapter_index, chapter_title, preview_text, created_at")
+    .eq("book_id", bookId)
+    .or(buildUserOrFilter(authUserId, legacyUserId))
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    bookId: String(row.book_id ?? bookId),
+    chapterIndex: Number(row.chapter_index ?? 0),
+    chapterTitle: String(row.chapter_title ?? `Cutubka ${Number(row.chapter_index ?? 0) + 1}`),
+    previewText: String(row.preview_text ?? ""),
+    scrollOffset: 0,
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+  }));
+}
+
+export async function loadHighlightsAction(bookId: number) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return [];
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const { data } = await supabase
+    .from("highlights")
+    .select("id, book_id, chapter_index, highlighted_text, color, created_at")
+    .eq("book_id", bookId)
+    .or(buildUserOrFilter(authUserId, legacyUserId))
+    .order("created_at", { ascending: false });
+
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    bookId: String(row.book_id ?? bookId),
+    chapterIndex: Number(row.chapter_index ?? 0),
+    chapterTitle: `Cutubka ${Number(row.chapter_index ?? 0) + 1}`,
+    text: String(row.highlighted_text ?? ""),
+    color: ["gold", "navy", "oxblood", "green"].includes(String(row.color ?? "gold"))
+      ? String(row.color ?? "gold")
+      : "gold",
+    scrollOffset: 0,
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+  }));
+}

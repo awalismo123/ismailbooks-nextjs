@@ -2452,4 +2452,84 @@ CREATE POLICY "Public read book insights" ON book_insights FOR SELECT USING (is_
 CREATE POLICY "Public read summaries" ON summaries FOR SELECT USING (true);
 CREATE POLICY "Public read site settings" ON site_settings FOR SELECT USING (true);
 
+-- Phase 0: Reader annotations tables for highlights and bookmarks.
+-- These follow the same dual-user pattern used by reading_progress.
+CREATE TABLE IF NOT EXISTS public.highlights (
+  id BIGSERIAL PRIMARY KEY,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id BIGINT NULL,
+  book_id BIGINT NOT NULL,
+  chapter_index INTEGER NOT NULL DEFAULT 0,
+  highlighted_text TEXT NOT NULL,
+  color TEXT NOT NULL CHECK (color IN ('gold', 'navy', 'oxblood', 'green')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.bookmarks (
+  id BIGSERIAL PRIMARY KEY,
+  auth_user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id BIGINT NULL,
+  book_id BIGINT NOT NULL,
+  chapter_index INTEGER NOT NULL DEFAULT 0,
+  chapter_title TEXT NOT NULL,
+  preview_text TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_highlights_user_book_chapter
+  ON public.highlights (auth_user_id, user_id, book_id, chapter_index, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_user_book_chapter
+  ON public.bookmarks (auth_user_id, user_id, book_id, chapter_index, created_at DESC);
+
+ALTER TABLE public.highlights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bookmarks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Highlights are readable only by the owner"
+ON public.highlights FOR SELECT
+USING (
+  auth_user_id = auth.uid()
+  OR user_id = (
+    SELECT u.user_id
+    FROM public.users u
+    WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    LIMIT 1
+  )
+);
+
+CREATE POLICY "Highlights are writable only by the owner"
+ON public.highlights FOR INSERT
+WITH CHECK (
+  auth_user_id = auth.uid()
+  OR user_id = (
+    SELECT u.user_id
+    FROM public.users u
+    WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    LIMIT 1
+  )
+);
+
+CREATE POLICY "Bookmarks are readable only by the owner"
+ON public.bookmarks FOR SELECT
+USING (
+  auth_user_id = auth.uid()
+  OR user_id = (
+    SELECT u.user_id
+    FROM public.users u
+    WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    LIMIT 1
+  )
+);
+
+CREATE POLICY "Bookmarks are writable only by the owner"
+ON public.bookmarks FOR INSERT
+WITH CHECK (
+  auth_user_id = auth.uid()
+  OR user_id = (
+    SELECT u.user_id
+    FROM public.users u
+    WHERE u.email = (SELECT email FROM auth.users WHERE id = auth.uid())
+    LIMIT 1
+  )
+);
+
 -- DONE! All data migrated and secured.
