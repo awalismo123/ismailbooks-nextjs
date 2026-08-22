@@ -4,28 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { processBookFileBuffer } from "@/lib/ingestion/processBookFile";
-
-async function getAdminClient() {
-  const { createServerClient } = await import("@supabase/ssr");
-  const { cookies } = await import("next/headers");
-  const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
-}
+import { createAdminClient } from "@/lib/supabase/server";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (!user.isAdmin) {
-    const adminSupabase = await getAdminClient();
+    const adminSupabase = await createAdminClient();
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("is_admin")
@@ -41,7 +26,7 @@ export async function saveBookAction(
   formData: FormData
 ): Promise<{ success?: boolean; error?: string }> {
   await requireAdmin();
-  const adminSupabase = await getAdminClient();
+  const adminSupabase = await createAdminClient();
 
   const bookId       = (formData.get("bookId") as string) || "";
   const title        = (formData.get("title") as string)?.trim();
@@ -169,7 +154,7 @@ export async function deleteBookAction(
 ): Promise<{ success?: boolean; error?: string }> {
   await requireAdmin();
   const bookId      = formData.get("bookId") as string;
-  const adminSupabase = await getAdminClient();
+  const adminSupabase = await createAdminClient();
 
   const { error } = await adminSupabase.from("books").delete().eq("id", bookId);
   if (error) return { error: error.message };

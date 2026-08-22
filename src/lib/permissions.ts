@@ -106,3 +106,96 @@ export async function canReadBook(
     book,
   };
 }
+
+// ─── Summary Reading Authorization ─────────────────────────────────────────
+export interface CanReadSummaryResult {
+  canRead: boolean;
+  isPaid: boolean;
+  isOwned: boolean;
+  summary: {
+    id: number | string;
+    title: string;
+    book_title: string | null;
+    book_author: string | null;
+    is_paid: boolean | number;
+    price: number | null;
+    content_html: string;
+    is_published: boolean | null;
+  } | null;
+}
+
+/**
+ * Single Source of Truth for summary reading authorization.
+ * Mirrors canReadBook() but checks user_summaries table.
+ */
+export async function canReadSummary(
+  user: AuthUser | null,
+  summaryId: string | number
+): Promise<CanReadSummaryResult> {
+  const adminSupabase = await createAdminClient();
+
+  const { data: summary } = await adminSupabase
+    .from("summaries")
+    .select("id, title, book_title, book_author, is_paid, price, content_html, is_published")
+    .eq("id", summaryId)
+    .maybeSingle();
+
+  if (!summary) {
+    return { canRead: false, isPaid: false, isOwned: false, summary: null };
+  }
+
+  const isPaid =
+    summary.is_paid === true ||
+    (summary.is_paid as unknown) === 1 ||
+    Number(summary.price || 0) > 0;
+
+  if (!isPaid) {
+    return { canRead: true, isPaid: false, isOwned: true, summary };
+  }
+
+  if (!user) {
+    return { canRead: false, isPaid: true, isOwned: false, summary };
+  }
+
+  if (user.isAdmin) {
+    return { canRead: true, isPaid: true, isOwned: true, summary };
+  }
+
+  // Resolve user identifiers
+  let authUserId = user.id;
+  let legacyUserId: number | null = /^\d+$/.test(user.id) ? Number(user.id) : null;
+
+  if (user.email) {
+    const { data: legacyAccount } = await adminSupabase
+      .from("users")
+      .select("user_id")
+      .ilike("email", user.email)
+      .maybeSingle();
+    if (legacyAccount) legacyUserId = legacyAccount.user_id;
+
+    const { data: profileAccount } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profileAccount) authUserId = profileAccount.id;
+  }
+
+  let query = adminSupabase
+    .from("user_summaries")
+    .select("user_summary_id")
+    .eq("summary_id", summaryId);
+
+  if (legacyUserId && authUserId && !/^\d+$/.test(authUserId)) {
+    query = query.or(`auth_user_id.eq.${authUserId},user_id.eq.${legacyUserId}`);
+  } else if (legacyUserId) {
+    query = query.eq("user_id", legacyUserId);
+  } else {
+    query = query.eq("auth_user_id", authUserId);
+  }
+
+  const { data: entitlement } = await query.maybeSingle();
+  const isOwned = !!entitlement;
+
+  return { canRead: isOwned, isPaid: true, isOwned, summary };
+}

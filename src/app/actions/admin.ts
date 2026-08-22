@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
+import { processBookFileBuffer } from "@/lib/ingestion/processBookFile";
 
 // ─────────────────────────────────────────────────────────────
 // Helper: verify current user is admin (NextAuth or Supabase)
@@ -222,30 +223,80 @@ export async function saveSummaryAction(formData: FormData) {
   const adminSupabase = await createAdminClient();
 
   const id = formData.get("id") as string | null;
-  const summaryData = {
+  const summaryFile = formData.get("summaryFile") as File | null;
+  let pages = formData.get("pages") ? Number(formData.get("pages")) : null;
+
+  const summaryData: any = {
     title: formData.get("title") as string,
     book_title: formData.get("book_title") as string,
     book_author: formData.get("book_author") as string,
     summary_creator: formData.get("summary_creator") as string,
     description: formData.get("description") as string,
     content_html: formData.get("content_html") as string,
+    category: formData.get("category") as string,
     is_paid: formData.get("is_paid") === "true" ? 1 : 0,
+    is_published: formData.get("is_published") === "true" ? 1 : 0,
     price: formData.get("price") ? Number(formData.get("price")) : null,
-    pages: formData.get("pages") ? Number(formData.get("pages")) : null,
+    pages: pages,
+    reading_time_minutes: formData.get("reading_time_minutes") ? Number(formData.get("reading_time_minutes")) : null,
     cover_image: formData.get("cover_image") as string | null,
     updated_at: new Date().toISOString(),
   };
+
+  let targetId = id;
 
   if (id) {
     const { error } = await adminSupabase.from("summaries").update(summaryData).eq("id", id);
     if (error) return { error: error.message };
   } else {
-    const { error } = await adminSupabase.from("summaries").insert({
+    const { data: newSummary, error } = await adminSupabase.from("summaries").insert({
       ...summaryData,
       views: 0,
       created_at: new Date().toISOString(),
-    });
+    }).select("id").single();
     if (error) return { error: error.message };
+    if (newSummary) targetId = String(newSummary.id);
+  }
+
+  // ── Ingest Document File (if provided) ──
+  if (summaryFile && summaryFile.size > 0 && targetId) {
+    try {
+      const arrayBuf = await summaryFile.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      const ingestion = await processBookFileBuffer(buffer, summaryFile.name);
+
+      const filePath = `summary_${targetId}/${summaryFile.name}`;
+      
+      const updateData: any = { file_link: filePath };
+      if (ingestion.pages && !pages) {
+        updateData.pages = ingestion.pages;
+        updateData.reading_time_minutes = Math.round(ingestion.pages / 2) || 5;
+      }
+
+      await adminSupabase.from("summaries").update(updateData).eq("id", targetId);
+
+      const tocStr = JSON.stringify(ingestion.toc, null, 2);
+      await adminSupabase.storage
+        .from("book-content")
+        .upload(`summary_${targetId}/toc.json`, Buffer.from(tocStr), {
+          contentType: "application/json",
+          upsert: true,
+        });
+
+      for (const chap of ingestion.chapters) {
+        await adminSupabase.storage
+          .from("book-content")
+          .upload(`summary_${targetId}/${chap.fileName}`, Buffer.from(chap.content), {
+            contentType: "text/html",
+            upsert: true,
+          });
+      }
+    } catch (err: any) {
+      console.error("Summary ingestion error:", err);
+      return {
+        error: `Soo-koobka waa la kaydiyay laakiin processing-ka faylka wuu guul-darraystay: ${err.message}`,
+      };
+    }
   }
 
   revalidatePath("/admin");

@@ -33,13 +33,15 @@ const paymentMethods = [
 ];
 
 export default function PaymentFormClient({
-  bookId,
-  bookTitle,
-  bookPrice,
+  itemId,
+  itemType,
+  itemTitle,
+  itemPrice,
 }: {
-  bookId: string;
-  bookTitle: string;
-  bookPrice: string;
+  itemId: string;
+  itemType: "book" | "summary";
+  itemTitle: string;
+  itemPrice: string;
 }) {
   const [method, setMethod] = useState("EVC");
   const [ref, setRef] = useState("");
@@ -113,7 +115,7 @@ export default function PaymentFormClient({
     <div className="container-site">
       {/* Back link */}
       <Link
-        href={`/books/${bookId}`}
+        href={`/${itemType === "summary" ? "summaries" : "books"}/${itemId}`}
         className="inline-flex items-center gap-2 text-xs text-[#6B5F52] no-underline transition-colors hover:text-[#201B16] mb-6"
       >
         <ArrowLeft className="w-4 h-4" />
@@ -202,7 +204,8 @@ export default function PaymentFormClient({
             }
             setReceiptError("");
             setLoading(true);
-            formData.append("bookId", bookId);
+            formData.append("itemId", itemId);
+            formData.append("itemType", itemType);
             formData.append("method", method);
             submitPaymentAction(formData).finally(() => setLoading(false));
           }}
@@ -441,14 +444,14 @@ export default function PaymentFormClient({
               </p>
             </div>
             <h3 className="font-display m-0 text-base font-extrabold leading-snug text-[#201B16] mb-1 line-clamp-2">
-              {bookTitle}
+              {itemTitle}
             </h3>
-            <p className="m-0 text-[11px] text-[#6B5F52] mb-4">Buug dhijitaal ah · Af-Soomaali</p>
+            <p className="m-0 text-[11px] text-[#6B5F52] mb-4">Dhijitaal ah · Af-Soomaali</p>
 
             <div className="bg-[#FBF7F0] rounded-xl p-3 mb-4">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-[#6B5F52]">Wadarta</span>
-                <span className="font-display text-2xl font-extrabold text-[#1F3A54]">{bookPrice}</span>
+                <span className="font-display text-2xl font-extrabold text-[#1F3A54]">{itemPrice}</span>
               </div>
             </div>
 
@@ -502,7 +505,7 @@ export default function PaymentFormClient({
               Wadarta
             </span>
             <span className="font-display text-lg font-extrabold text-[#1F3A54]">
-              {bookPrice}
+              {itemPrice}
             </span>
           </div>
           <button

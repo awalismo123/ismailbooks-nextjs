@@ -188,7 +188,8 @@ async function setChapterInCache(key: string, html: string) {
 }
 
 export default function BookReaderClient({
-  bookId,
+  bookId, // For backwards compatibility, will represent itemId
+  itemType = "book",
   bookTitle,
   bookAuthor: _bookAuthor,
   isPreview = false,
@@ -198,6 +199,7 @@ export default function BookReaderClient({
   initialScrollOffset = 0,
 }: {
   bookId: string;
+  itemType?: "book" | "summary";
   bookTitle: string;
   bookAuthor: string;
   isPreview?: boolean;
@@ -206,6 +208,7 @@ export default function BookReaderClient({
   initialChapter?: number;
   initialScrollOffset?: number;
 }) {
+  const storageId = itemType === "summary" ? `summary_${bookId}` : bookId;
   const [fontSize, setFontSize] = useState(18);
   const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
   const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
@@ -383,7 +386,7 @@ export default function BookReaderClient({
     async function loadToc() {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/toc.json`,
+          `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/toc.json`,
         );
         if (!res.ok) throw new Error("TOC not found");
         const data = await res.json();
@@ -407,7 +410,7 @@ export default function BookReaderClient({
       let firstProse = 0;
       for (let i = 0; i < Math.min(toc!.length, 10); i++) {
         try {
-          const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/${toc![i].file}`);
+          const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${toc![i].file}`);
           const html = await res.text();
           const pCount = (html.match(/<p\b[^>]*>/gi) || []).length;
           if (pCount >= 3) {
@@ -446,7 +449,7 @@ export default function BookReaderClient({
         chapter = initialChapter;
         offset = initialScrollOffset;
       } else {
-        const progress = await loadProgressAction(Number(bookId));
+        const progress = itemType !== "summary" ? await loadProgressAction(Number(bookId)) : null;
         if (progress) {
           chapter = progress.chapterIndex ?? 0;
           offset = progress.scrollOffset ?? 0;
@@ -494,7 +497,7 @@ export default function BookReaderClient({
   }, []);
 
   const saveProgress = useCallback(() => {
-    if (!initialLoadDone || !bookId || isPreview) return;
+    if (!initialLoadDone || !bookId || isPreview || itemType === "summary") return;
     writeLocalProgress(bookId, chapterRef.current, scrollOffsetRef.current);
     const fd = new FormData();
     fd.append("bookId", bookId);
@@ -529,8 +532,8 @@ export default function BookReaderClient({
       try {
         const item = toc![currentChapter];
         if (!item) throw new Error("Chapter not found");
-        const url = `${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/${item.file}`;
-        const cacheKey = `reader-${bookId}-${item.file}`;
+        const url = `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${item.file}`;
+        const cacheKey = `reader-${storageId}-${item.file}`;
 
         // Try cache first
         const cached = await getChapterFromCache(cacheKey);
@@ -557,7 +560,7 @@ export default function BookReaderClient({
         const next = toc![currentChapter + 1];
         if (next && !(isPreview && currentChapter === previewLimit)) {
           fetch(
-            `${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/${next.file}`,
+            `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${next.file}`,
           ).catch(() => {});
         }
       } catch (err: unknown) {

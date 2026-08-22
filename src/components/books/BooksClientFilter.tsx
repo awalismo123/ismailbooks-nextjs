@@ -6,7 +6,7 @@ import { useLanguage } from "@/lib/i18n";
 import { BookCard, type BookCardData } from "./BookCard";
 
 type Book = {
-  id: number;
+  id: number | string;
   title: string;
   author: string;
   desc: string;
@@ -16,6 +16,7 @@ type Book = {
   rating: string;
   cover: string;
   category: string;
+  isSummary?: boolean;
 };
 
 type FilterMode = "all" | "free" | "premium";
@@ -68,6 +69,7 @@ export default function BooksClientFilter({ books }: { books: Book[] }) {
     pages: b.pages,
     rating: b.rating,
     category: b.category,
+    href: b.isSummary ? `/summaries/${b.id}` : `/books/${b.id}`,
   });
 
   const typeFilters: { key: FilterMode; label: string; count?: number }[] = [

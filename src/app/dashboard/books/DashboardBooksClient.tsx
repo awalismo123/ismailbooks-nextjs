@@ -17,6 +17,7 @@ import { buildReturnTarget } from "@/lib/navigation";
 
 export type BookItem = {
   id: number;
+  isSummary?: boolean;
   title: string;
   author: string;
   coverImage: string | null;
@@ -324,7 +325,7 @@ export default function DashboardBooksClient({
                   {/* Action footer */}
                   <div className="px-5 pb-4 flex gap-2">
                     <Link
-                      href={`/books/${book.id}/read?returnTo=${buildReturnTarget("/dashboard/books")}&chapter=${book.chapterIndex > 0 ? book.chapterIndex : 0}`}
+                      href={`/${book.isSummary ? 'summaries' : 'books'}/${book.id}/read?returnTo=${buildReturnTarget("/dashboard/books")}&chapter=${book.chapterIndex > 0 ? book.chapterIndex : 0}`}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-[#7A1F2B] hover:bg-[#601822] text-white text-[11px] font-bold rounded-xl transition-colors"
                     >
                       <PlayCircle className="w-3.5 h-3.5" />
@@ -383,7 +384,7 @@ export default function DashboardBooksClient({
                       </div>
                       <div className="flex flex-col items-center gap-2 shrink-0">
                         <Link
-                          href={`/books/${book.id}/read?returnTo=${buildReturnTarget("/dashboard/books")}&chapter=${book.chapterIndex > 0 ? book.chapterIndex : 0}`}
+                          href={`/${book.isSummary ? 'summaries' : 'books'}/${book.id}/read?returnTo=${buildReturnTarget("/dashboard/books")}&chapter=${book.chapterIndex > 0 ? book.chapterIndex : 0}`}
                           className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#7A1F2B] text-white font-bold text-xs hover:bg-[#601822] transition-colors"
                         >
                           <PlayCircle className="w-3.5 h-3.5" />

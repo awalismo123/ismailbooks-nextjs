@@ -3,24 +3,18 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Sun,
-  Moon,
-  BookOpen,
-  Minus,
-  Plus,
   Lock,
   CreditCard,
-  Sparkles,
-  Maximize,
-  Minimize,
-  Type,
-  FileText,
   UserCheck,
+  Settings2,
+  Check,
 } from "lucide-react";
 import ReaderBackButton from "@/components/reader/ReaderBackButton";
-
-type ReaderTheme = "light" | "sepia" | "night";
-type FontFamily = "serif" | "sans" | "mono";
+import ReaderSettingsSheet, {
+  type ReaderTheme,
+  type FontFamily,
+  type LineSpacing,
+} from "@/components/reader/ReaderSettingsSheet";
 
 const THEME_STYLES: Record<ReaderTheme, React.CSSProperties> = {
   light: {
@@ -56,6 +50,12 @@ const FONT_CLASSES: Record<FontFamily, string> = {
   serif: "font-serif",
   sans: "font-sans",
   mono: "font-mono",
+  dyslexia: "font-dyslexia",
+};
+
+const LINE_SPACING_CLASSES: Record<LineSpacing, string> = {
+  normal: "leading-relaxed",
+  relaxed: "leading-loose",
 };
 
 interface SummaryReaderClientProps {
@@ -86,13 +86,16 @@ export default function SummaryReaderClient({
   const [fontSize, setFontSize] = useState(18);
   const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
   const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
+  const [lineSpacing, setLineSpacing] = useState<LineSpacing>("normal");
+  const [showSettings, setShowSettings] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem("ib_summary_theme") as ReaderTheme | null;
-      const savedFontSize = localStorage.getItem("ib_summary_font_size");
-      const savedFontFamily = localStorage.getItem("ib_summary_font_family") as FontFamily | null;
+      const savedTheme = localStorage.getItem("ib_reader_theme") as ReaderTheme | null;
+      const savedFontSize = localStorage.getItem("ib_reader_font_size");
+      const savedFontFamily = localStorage.getItem("ib_reader_font_family") as FontFamily | null;
+      const savedLineSpacing = localStorage.getItem("ib_reader_line_spacing") as LineSpacing | null;
 
       if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
         setReaderTheme(savedTheme);
@@ -101,28 +104,36 @@ export default function SummaryReaderClient({
         const n = Number(savedFontSize);
         if (n >= 14 && n <= 30) setFontSize(n);
       }
-      if (savedFontFamily && ["serif", "sans", "mono"].includes(savedFontFamily)) {
+      if (savedFontFamily && ["serif", "sans", "mono", "dyslexia"].includes(savedFontFamily)) {
         setFontFamily(savedFontFamily);
+      }
+      if (savedLineSpacing && ["normal", "relaxed"].includes(savedLineSpacing)) {
+        setLineSpacing(savedLineSpacing);
       }
     } catch {}
   }, []);
 
   const changeTheme = (t: ReaderTheme) => {
     setReaderTheme(t);
-    try { localStorage.setItem("ib_summary_theme", t); } catch {}
+    try { localStorage.setItem("ib_reader_theme", t); } catch {}
   };
 
   const changeFontSize = (delta: number) => {
     setFontSize((prev) => {
       const next = Math.min(30, Math.max(14, prev + delta));
-      try { localStorage.setItem("ib_summary_font_size", String(next)); } catch {}
+      try { localStorage.setItem("ib_reader_font_size", String(next)); } catch {}
       return next;
     });
   };
 
   const changeFontFamily = (f: FontFamily) => {
     setFontFamily(f);
-    try { localStorage.setItem("ib_summary_font_family", f); } catch {}
+    try { localStorage.setItem("ib_reader_font_family", f); } catch {}
+  };
+
+  const changeLineSpacing = (s: LineSpacing) => {
+    setLineSpacing(s);
+    try { localStorage.setItem("ib_reader_line_spacing", s); } catch {}
   };
 
   const toggleFullscreen = () => {
@@ -179,93 +190,13 @@ export default function SummaryReaderClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Theme switcher */}
-          <div
-            style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="flex items-center rounded-xl p-0.5 shrink-0"
-          >
-            {([
-              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Light" },
-              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Sepia" },
-              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, label: "Night" },
-            ]).map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => changeTheme(opt.id)}
-                title={opt.label}
-                className="rounded-[9px] min-w-[28px] min-h-[32px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center transition-colors"
-                style={{
-                  background: readerTheme === opt.id ? "var(--reader-accent)" : "transparent",
-                  color: readerTheme === opt.id ? "#fff" : "var(--reader-muted)",
-                }}
-                aria-label={opt.label}
-              >
-                {opt.icon}
-              </button>
-            ))}
-          </div>
-
-          {/* Font Family (Desktop) */}
-          <div
-            style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="hidden lg:flex items-center rounded-xl p-0.5 shrink-0 text-[10px] font-bold"
-          >
-            {(["serif", "sans", "mono"] as FontFamily[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => changeFontFamily(f)}
-                className="rounded-[10px] min-w-[44px] min-h-[36px] flex items-center justify-center gap-1 px-1.5 uppercase transition-colors"
-                style={{
-                  background: fontFamily === f ? "var(--reader-accent)" : "transparent",
-                  color: fontFamily === f ? "#fff" : "var(--reader-muted)",
-                }}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-
-          {/* Font size */}
-          <div
-            style={{ border: "1px solid var(--reader-border)", background: "var(--reader-surface)" }}
-            className="flex items-center rounded-xl shrink-0"
-          >
-            <button
-              type="button"
-              onClick={() => changeFontSize(-2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
-              title="Yaree xarfaha"
-              aria-label="Yaree xarfaha"
-            >
-              <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <span className="text-[11px] sm:text-[12px] font-mono font-bold text-[var(--reader-accent)] min-w-[20px] sm:min-w-[28px] text-center">
-              {fontSize}
-            </span>
-            <button
-              type="button"
-              onClick={() => changeFontSize(2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
-              title="Kordhi xarfaha"
-              aria-label="Kordhi xarfaha"
-            >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-
-          {/* Fullscreen Toggle */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           <button
-            type="button"
-            onClick={toggleFullscreen}
-            style={{ border: "1px solid var(--reader-border)", background: isFullscreen ? "var(--reader-accent)" : "var(--reader-surface)", color: isFullscreen ? "#fff" : "var(--reader-muted)" }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            title="Shaashad Buuxda"
-            aria-label="Shaashad Buuxda"
+            onClick={() => setShowSettings(true)}
+            className="w-10 h-10 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl transition-colors hover:bg-[var(--reader-surface)] text-[var(--reader-muted)] hover:text-[var(--reader-heading)]"
+            title="Dejinta Akhriska"
           >
-            {isFullscreen ? <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+            <Settings2 className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
       </header>
@@ -285,16 +216,15 @@ export default function SummaryReaderClient({
           </div>
         )}
 
-        <article className={FONT_CLASSES[fontFamily]} style={{ fontSize: `${fontSize}px` }}>
+        <article className={`${FONT_CLASSES[fontFamily]} ${LINE_SPACING_CLASSES[lineSpacing]}`} style={{ fontSize: `${fontSize}px` }}>
           <div
-            className="reader-prose"
+            className="reader-prose pb-20"
             dangerouslySetInnerHTML={{ __html: contentHtml || "<p>Nuxurka soo-koobidda lagama helin.</p>" }}
           />
         </article>
 
-        {/* Paywall Callout if preview */}
         {isPreview && (
-          <div className="mt-12 rounded-2xl border border-[#C9962E]/40 bg-gradient-to-b from-[#FBF7F0] to-[#FAF3E6] p-6 text-center shadow-lg">
+          <div className="mt-12 rounded-2xl border border-[#C9962E]/40 bg-gradient-to-b from-[#FBF7F0] to-[#FAF3E6] p-6 text-center shadow-lg mb-20">
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#C9962E]/20 text-[#C9962E]">
               <Lock className="h-6 w-6" />
             </div>
@@ -322,6 +252,21 @@ export default function SummaryReaderClient({
           </div>
         )}
       </main>
+
+      <ReaderSettingsSheet
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
+        readerTheme={readerTheme}
+        onThemeChange={changeTheme}
+        fontSize={fontSize}
+        onFontSizeChange={changeFontSize}
+        fontFamily={fontFamily}
+        onFontFamilyChange={changeFontFamily}
+        lineSpacing={lineSpacing}
+        onLineSpacingChange={changeLineSpacing}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
 
       <style>{`
         .reader-prose { line-height: 1.85; }

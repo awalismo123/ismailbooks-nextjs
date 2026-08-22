@@ -59,7 +59,7 @@ export default async function AdminPage() {
 
     adminSupabase
       .from("summaries")
-      .select("id, title, book_title, book_author, is_paid, price, views, created_at, description, content_html, cover_image, summary_creator, pages")
+      .select("id, title, book_title, book_author, is_paid, price, views, created_at, description, content_html, cover_image, summary_creator, pages, category, reading_time_minutes, is_published")
       .order("created_at", { ascending: false }),
   ]);
 
@@ -268,6 +268,9 @@ export default async function AdminPage() {
     cover_image: s.cover_image || null,
     summary_creator: s.summary_creator || null,
     pages: s.pages || null,
+    category: s.category || null,
+    reading_time_minutes: s.reading_time_minutes || null,
+    is_published: s.is_published === true || (s.is_published as unknown) === 1,
   }));
 
   const blogCategories = (blogCategoriesData ?? []).map((c) => ({

@@ -20,7 +20,7 @@ async function requireAdmin() {
 
 // ─────────────────────────────────────────────────────────────
 // 1. Submit a payment (called from /payment/[bookId] form)
-//    Now handles the receipt screenshot upload.
+//    Now handles the receipt screenshot upload and summaries.
 // ─────────────────────────────────────────────────────────────
 export async function submitPaymentAction(formData: FormData) {
   const supabase = await createClient();
@@ -32,33 +32,45 @@ export async function submitPaymentAction(formData: FormData) {
     redirect("/login");
   }
 
-  const bookId = formData.get("bookId") as string;
+  const itemId = formData.get("itemId") as string;
+  const itemType = (formData.get("itemType") as string) || "book";
   const method = formData.get("method") as string;
   const refNumber = formData.get("refNumber") as string;
   const receipt = formData.get("receipt") as File | null;
 
-  if (!bookId || !method || !refNumber?.trim()) {
-    redirect(`/payment/${bookId}?error=missing_fields`);
+  if (!itemId || !method || !refNumber?.trim()) {
+    redirect(`/payment/${itemId}?type=${itemType}&error=missing_fields`);
   }
 
   // Receipt screenshot is required — it is the admin's proof of payment.
   if (!receipt || receipt.size === 0) {
-    redirect(`/payment/${bookId}?error=no_receipt`);
+    redirect(`/payment/${itemId}?type=${itemType}&error=no_receipt`);
   }
 
-  // Fetch book price from database (never trust the client's price)
-  const { data: book } = await supabase
-    .from("books")
-    .select("id, price, is_paid")
-    .eq("id", bookId)
-    .single();
-
-  if (!book) redirect(`/books/${bookId}?error=not_found`);
+  // Fetch price from database (never trust the client's price)
+  let amount = 0;
+  if (itemType === "summary") {
+    const { data: summary } = await supabase
+      .from("summaries")
+      .select("id, price, is_paid")
+      .eq("id", itemId)
+      .single();
+    if (!summary) redirect(`/summaries/${itemId}?error=not_found`);
+    amount = summary.price ?? 0;
+  } else {
+    const { data: book } = await supabase
+      .from("books")
+      .select("id, price, is_paid")
+      .eq("id", itemId)
+      .single();
+    if (!book) redirect(`/books/${itemId}?error=not_found`);
+    amount = book.price ?? 0;
+  }
 
   // ── Upload receipt screenshot to Supabase Storage ──
-  // Stored under the user's own folder: {user_id}/{book_id}-{timestamp}.ext
+  // Stored under the user's own folder: {user_id}/{itemId}-{timestamp}.ext
   const fileExt = receipt.name.split(".").pop()?.toLowerCase() || "jpg";
-  const fileName = `${user.id}/${bookId}-${Date.now()}.${fileExt}`;
+  const fileName = `${user.id}/${itemId}-${Date.now()}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
     .from("receipts")
@@ -70,7 +82,7 @@ export async function submitPaymentAction(formData: FormData) {
 
   if (uploadError) {
     console.error("Receipt upload error:", uploadError);
-    redirect(`/payment/${bookId}?error=upload_error`);
+    redirect(`/payment/${itemId}?type=${itemType}&error=upload_error`);
   }
 
   const { data: urlData } = supabase.storage
@@ -81,10 +93,11 @@ export async function submitPaymentAction(formData: FormData) {
   // ── Insert pending payment with receipt URL ──
   const { error } = await supabase.from("payments").insert({
     auth_user_id: user.id,
-    book_id: Number(bookId),
+    book_id: itemType === "book" ? Number(itemId) : null,
+    summary_id: itemType === "summary" ? Number(itemId) : null,
     payment_method: method,
     reference_number: refNumber.trim(),
-    amount: book.price ?? 0,
+    amount: amount,
     status: "pending",
     proof_image_path: receiptUrl,
     // Legacy bigint columns — use 0 as placeholder
@@ -94,7 +107,7 @@ export async function submitPaymentAction(formData: FormData) {
 
   if (error) {
     console.error("Payment insert error:", error);
-    redirect(`/payment/${bookId}?error=db_error`);
+    redirect(`/payment/${itemId}?type=${itemType}&error=db_error`);
   }
 
   revalidatePath("/dashboard");

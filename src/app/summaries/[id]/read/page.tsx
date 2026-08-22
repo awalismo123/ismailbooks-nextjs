@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import SummaryReaderClient from "@/components/summaries/SummaryReaderClient";
+import BookReaderClient from "@/components/books/BookReaderClient";
 import { parseReturnTarget, UserRole } from "@/lib/navigation";
 
 export async function generateMetadata({
@@ -59,10 +60,10 @@ export default async function SummaryReaderPage({
     let userOwns = false;
     if (user) {
       const { data: entitlement } = await supabase
-        .from("user_books")
-        .select("user_book_id")
+        .from("user_summaries")
+        .select("user_summary_id")
         .or(`auth_user_id.eq.${user.id}`)
-        .eq("book_id", summaryId)
+        .eq("summary_id", summaryId)
         .maybeSingle();
       userOwns = !!entitlement;
     }
@@ -70,6 +71,20 @@ export default async function SummaryReaderPage({
     if (!userOwns) {
       isPreviewMode = true;
     }
+  }
+
+  if (summary.file_link) {
+    return (
+      <BookReaderClient
+        bookId={summaryId}
+        itemType="summary"
+        bookTitle={summary.title}
+        bookAuthor={summary.book_author || "IsmailBooks"}
+        isPreview={isPreviewMode}
+        isPaid={isPaid}
+        returnTarget={returnTarget}
+      />
+    );
   }
 
   return (

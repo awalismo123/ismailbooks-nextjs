@@ -22,6 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import BookFormModal from "./BookFormModal";
 import BlogPostFormModal from "./BlogPostFormModal";
 import BlogCategoryModal from "./BlogCategoryModal";
+import SummaryFormModal, { type EditableSummary } from "./SummaryFormModal";
 
 type Payment = {
   id: number; user: string; book: string; method: string; ref: string;
@@ -55,6 +56,9 @@ type Summary = {
   is_paid: boolean; price: string; views: number; date: string; description: string | null;
   content_html: string; cover_image: string | null; summary_creator: string | null;
   pages: number | null;
+  category: string | null;
+  reading_time_minutes: number | null;
+  is_published: boolean;
 };
 type BlogCategory = { id: number; name: string; slug: string };
 type Stats = {
@@ -344,78 +348,6 @@ function PaymentDetailModal({
   );
 }
 
-// ── Summary Form Modal ──────────────────────────────────────────────────────
-function SummaryFormModal({ summary, onClose, onSaved }: { summary: Summary | null; onClose: () => void; onSaved: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [title, setTitle] = useState(summary?.title ?? "");
-  const [bookTitle, setBookTitle] = useState(summary?.book_title ?? "");
-  const [bookAuthor, setBookAuthor] = useState(summary?.book_author ?? "");
-  const [creator, setCreator] = useState(summary?.summary_creator ?? "Ismail Abdi");
-  const [pages, setPages] = useState(summary?.pages ? String(summary.pages) : "15");
-  const [description, setDescription] = useState(summary?.description ?? "");
-  const [content, setContent] = useState(summary?.content_html ?? "");
-  const [coverImage, setCoverImage] = useState(summary?.cover_image ?? "");
-  const [isPaid, setIsPaid] = useState(summary?.is_paid ?? false);
-  const [price, setPrice] = useState(summary?.price ?? "0");
-
-  const handleSave = async () => {
-    if (!title.trim() || !content.trim()) { setError("Cinwaanka iyo qoraalka waa lagama maarmaan."); return; }
-    setSaving(true); setError("");
-    const fd = new FormData();
-    if (summary?.id) fd.append("id", String(summary.id));
-    fd.append("title", title); fd.append("book_title", bookTitle);
-    fd.append("book_author", bookAuthor); fd.append("summary_creator", creator);
-    fd.append("pages", pages); fd.append("description", description);
-    fd.append("content_html", content); fd.append("cover_image", coverImage);
-    fd.append("is_paid", String(isPaid)); fd.append("price", price);
-    const result = await saveSummaryAction(fd);
-    setSaving(false);
-    if ((result as any)?.error) { setError((result as any).error); return; }
-    onSaved();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl my-8" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8DFD2]">
-          <h2 className="font-display text-xl font-extrabold text-[#201B16] m-0">{summary ? "Wax ka beddel Soo-koobka" : "Soo-koob Cusub"}</h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[#F7F1E5]"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="p-6 space-y-4">
-          {error && <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-bold">{error}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="field sm:col-span-2"><label>Cinwaanka Soo-koobka *</label><input value={title} onChange={e => setTitle(e.target.value)} placeholder="Cinwaanka..." /></div>
-            <div className="field"><label>Magaca Buugga</label><input value={bookTitle} onChange={e => setBookTitle(e.target.value)} placeholder="..." /></div>
-            <div className="field"><label>Qoraaga Buugga</label><input value={bookAuthor} onChange={e => setBookAuthor(e.target.value)} placeholder="..." /></div>
-            <div className="field"><label>Sameeyaha Soo-koobka</label><input value={creator} onChange={e => setCreator(e.target.value)} /></div>
-            <div className="field"><label>Bogagga</label><input type="number" value={pages} onChange={e => setPages(e.target.value)} placeholder="50" /></div>
-            <div className="field sm:col-span-2"><label>Faahfaahin</label><textarea rows={2} value={description} onChange={e => setDescription(e.target.value)} /></div>
-            <div className="field sm:col-span-2">
-              <label>Qoraalka Soo-koobka *</label>
-              <textarea rows={12} value={content} onChange={e => setContent(e.target.value)} placeholder="Qoraalka oo dhan... (HTML ayaa la ogolaanaa)" className="font-mono text-sm" />
-            </div>
-            <div className="field"><label>Sawirka (URL)</label><input value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="https://..." /></div>
-            <div className="field">
-              <label>Nooca</label>
-              <select value={String(isPaid)} onChange={e => setIsPaid(e.target.value === "true")}>
-                <option value="false">Bilaash</option>
-                <option value="true">Premium (Lacag)</option>
-              </select>
-            </div>
-            {isPaid && <div className="field"><label>Qiimaha (USD $)</label><input type="number" value={price} onChange={e => setPrice(e.target.value)} placeholder="10" /></div>}
-          </div>
-        </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#E8DFD2]">
-          <button onClick={onClose} className="btn btn-ghost btn-sm">Ka noqo</button>
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary btn-sm disabled:opacity-50">
-            {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : "Keydi"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── User Detail Modal ──────────────────────────────────────────────────────
 function UserDetailModal({
@@ -670,7 +602,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
   const [paymentSearch, setPaymentSearch] = useState("");
   const [bookModal, setBookModal] = useState<{ open: boolean; book: Book | null }>({ open: false, book: null });
   const [blogModal, setBlogModal] = useState<{ open: boolean; post: BlogPost | null }>({ open: false, post: null });
-  const [summaryModal, setSummaryModal] = useState<{ open: boolean; summary: Summary | null }>({ open: false, summary: null });
+  const [summaryModal, setSummaryModal] = useState<{ open: boolean; summary: EditableSummary | null }>({ open: false, summary: null });
   const [userDetailModal, setUserDetailModal] = useState<UserData | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [userFilter, setUserFilter] = useState<"all" | "has_books" | "no_books" | "active" | "suspended">("all");
@@ -1307,7 +1239,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
                 <div className="overflow-auto">
                   <table className="w-full border-collapse min-w-[760px] bg-white">
                     <thead>
-                      <tr><Th>Cinwaanka</Th><Th>Buugga</Th><Th>Qoraaga</Th><Th>Bogagga</Th><Th>Nooca</Th><Th>Qiimaha</Th><Th>Daawashada</Th><Th>Ficil</Th></tr>
+                      <tr><Th>Cinwaanka</Th><Th>Qeybta</Th><Th>Buugga</Th><Th>Status</Th><Th>Nooca</Th><Th>Qiimaha</Th><Th>Daawashada</Th><Th>Ficil</Th></tr>
                     </thead>
                     <tbody>
                       {filteredSummaries.length === 0 ? (
@@ -1317,9 +1249,15 @@ export default function AdminClient({ data }: { data: AdminData }) {
                       ) : filteredSummaries.map((s) => (
                         <tr key={s.id} className="border-b border-[#E8DFD2] last:border-b-0 hover:bg-[#FBF7F0] transition-colors">
                           <Td className="text-sm font-bold text-[#201B16] max-w-[200px] truncate">{s.title}</Td>
+                          <Td className="text-xs text-[#6B5F52]">{s.category || "—"}</Td>
                           <Td className="text-xs text-[#6B5F52] max-w-[140px] truncate">{s.book_title || "—"}</Td>
-                          <Td className="text-xs text-[#6B5F52]">{s.book_author || "—"}</Td>
-                          <Td className="text-xs text-[#6B5F52]">{s.pages ? `${s.pages} p` : "—"}</Td>
+                          <Td>
+                            {s.is_published ? (
+                              <span className="flex items-center gap-1 text-[#2E7D5B] text-[11px] font-extrabold uppercase"><CheckCircle2 className="w-3.5 h-3.5" /> Published</span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[#6B5F52] text-[11px] font-extrabold uppercase"><Ban className="w-3.5 h-3.5" /> Draft</span>
+                            )}
+                          </Td>
                           <Td><span className={`badge ${s.is_paid ? "badge-gold" : "badge-success"}`}>{s.is_paid ? "Premium" : "Free"}</span></Td>
                           <Td className="text-xs font-bold text-[#1F3A54]">{s.is_paid ? s.price : "—"}</Td>
                           <Td className="text-xs text-[#201B16] font-semibold">{s.views.toLocaleString()}</Td>
@@ -1327,7 +1265,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
                             <div className="flex items-center gap-2">
                               <Link href={`/summaries/${s.id}/read?returnTo=${buildReturnTarget("/admin", { tab: "summaries" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[#FBF7F0]" title="Akhriso Soo-koobka (Reader)"><BookOpen className="w-3.5 h-3.5" /></Link>
                               <Link href={`/summaries/${s.id}?returnTo=${buildReturnTarget("/admin", { tab: "summaries" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg Faahfaahinta"><Eye className="w-3.5 h-3.5" /></Link>
-                              <button onClick={() => setSummaryModal({ open: true, summary: s })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[rgba(122,31,43,0.06)]" title="Wax ka beddel"><Pencil className="w-3.5 h-3.5" /></button>
+                              <button onClick={() => setSummaryModal({ open: true, summary: { ...s, price: s.price.replace('$', '') } as any })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[rgba(122,31,43,0.06)]" title="Wax ka beddel"><Pencil className="w-3.5 h-3.5" /></button>
                               <button onClick={() => handleDeleteSummary(s.id)} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50" title="Tirtir"><Trash2 className="w-3.5 h-3.5" /></button>
                             </div>
                           </Td>

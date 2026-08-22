@@ -11,15 +11,18 @@ export type BookCardData = {
   pages?: number;
   rating?: string;
   category?: string | null;
+  href?: string;
 };
 
 export function BookCard({ book }: { book: BookCardData }) {
-  const isGradient = book.cover.startsWith("cover-gradient");
+  const isGradient = book.cover.startsWith("cover-gradient") || book.cover.startsWith("linear-gradient");
   const hasRating = book.rating && book.rating !== "—";
+  
+  const href = book.href || `/books/${book.id}`;
 
   return (
     <Link
-      href={`/books/${book.id}`}
+      href={href}
       className="group relative flex flex-col overflow-hidden rounded-2xl border border-[#E8DFD2] bg-white shadow-[0_1px_3px_rgba(32,27,22,0.05)] transition-all duration-300 hover:-translate-y-1.5 hover:border-[#1F3A54]/30 hover:shadow-[0_20px_44px_-12px_rgba(32,27,22,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7A1F2B] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FBF7F0]"
     >
       {/* ── Cover ── */}

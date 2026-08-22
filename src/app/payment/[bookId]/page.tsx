@@ -17,28 +17,44 @@ export const metadata: Metadata = {
 
 export default async function PaymentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ bookId: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const { bookId } = await params;
+  const search = await searchParams;
+  const itemType = (search.type as "book" | "summary") || "book";
+
   const user = await getCurrentUser();
   if (!user) {
-    redirect(`/login?redirect=/payment/${bookId}`);
+    redirect(`/login?redirect=/payment/${bookId}?type=${itemType}`);
   }
 
   const supabase = await createClient();
 
-  const { data: book } = await supabase
-    .from("books")
-    .select("*")
-    .eq("id", bookId)
-    .single();
+  let item = null;
+  if (itemType === "summary") {
+    const { data } = await supabase
+      .from("summaries")
+      .select("*")
+      .eq("id", bookId)
+      .single();
+    item = data;
+  } else {
+    const { data } = await supabase
+      .from("books")
+      .select("*")
+      .eq("id", bookId)
+      .single();
+    item = data;
+  }
 
-  if (!book) {
+  if (!item) {
     notFound();
   }
 
-  const isPaid = book.is_paid === true || (book.is_paid as unknown) === 1;
+  const isPaid = item.is_paid === true || (item.is_paid as unknown) === 1;
 
   if (!isPaid) {
     return (
@@ -50,25 +66,25 @@ export default async function PaymentPage({
               <CheckCircle2 className="h-8 w-8 text-[#2E7D5B]" />
             </div>
             <h1 className="font-display text-2xl font-extrabold text-[#201B16]">
-              Buuggan waa bilaash!
+              {itemType === "summary" ? "Soo-koobkan waa bilaash!" : "Buuggan waa bilaash!"}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-[#6B5F52]">
-              Buuggan uma baahna lacag-bixin. Waxaad si toos ah ugu akhrin kartaa bilaash.
+              Uma baahna lacag-bixin. Waxaad si toos ah ugu akhrin kartaa bilaash.
             </p>
             <div className="mt-6 space-y-3">
               <Link
-                href={`/books/${bookId}/read?returnTo=${buildReturnTarget("/dashboard", { tab: "library" })}`}
+                href={`/${itemType === "summary" ? "summaries" : "books"}/${bookId}/read?returnTo=${buildReturnTarget("/dashboard", { tab: "library" })}`}
                 className="btn btn-success btn-block"
               >
                 <BookOpen className="h-4 w-4" />
                 Akhri Bilaash
               </Link>
               <Link
-                href={`/books/${bookId}`}
+                href={`/${itemType === "summary" ? "summaries" : "books"}/${bookId}`}
                 className="btn btn-ghost btn-block"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Ku noqo buugga
+                Ku noqo
               </Link>
             </div>
           </div>
@@ -78,15 +94,16 @@ export default async function PaymentPage({
     );
   }
 
-  /* ── Paid book — render checkout form ── */
+  /* ── Paid item — render checkout form ── */
   return (
     <div className="flex min-h-screen flex-col bg-[#FBF7F0]">
       <Navbar />
       <main className="flex-grow py-10 md:py-12">
         <PaymentFormClient
-          bookId={book.id.toString()}
-          bookTitle={book.title}
-          bookPrice={`$${Number(book.price ?? 0).toLocaleString()}`}
+          itemId={item.id.toString()}
+          itemType={itemType}
+          itemTitle={item.title}
+          itemPrice={`$${Number(item.price ?? 0).toLocaleString()}`}
         />
       </main>
       <Footer />
