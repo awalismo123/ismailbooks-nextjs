@@ -627,11 +627,13 @@ export default function BookReaderClient({
     void loadRemoteAnnotations();
   }, [bookId, bookmarks, highlights, isLoggedIn, mergeLocalAndRemoteBookmarks, mergeLocalAndRemoteHighlights, persistBookmarks, persistHighlights]);
 
+  // Ref that holds the captured selection text — survives toolbar button mousedown without clearing browser selection
+  const savedSelectionRef = useRef<{ text: string; x: number; y: number } | null>(null);
+
   const createHighlightFromSelection = (color: HighlightColor = "gold") => {
-    if (typeof window === "undefined") return;
-    const selection = window.getSelection();
-    if (!selection) return;
-    const text = selection.toString().trim();
+    // Prefer live selection; fall back to saved ref (survives toolbar mousedown)
+    const liveText = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
+    const text = liveText || savedSelectionRef.current?.text || "";
     if (!text) return;
 
     const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
@@ -647,15 +649,14 @@ export default function BookReaderClient({
     };
 
     persistHighlights([nextHighlight, ...highlights]);
-    selection.removeAllRanges();
+    window.getSelection()?.removeAllRanges();
+    savedSelectionRef.current = null;
     setSelectionToolbar(null);
   };
 
   const createBookmarkFromSelection = () => {
-    if (typeof window === "undefined") return;
-    const selection = window.getSelection();
-    if (!selection) return;
-    const text = selection.toString().trim();
+    const liveText = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
+    const text = liveText || savedSelectionRef.current?.text || "";
     if (!text) return;
 
     const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
@@ -670,33 +671,31 @@ export default function BookReaderClient({
     };
 
     persistBookmarks([...bookmarks, nextBookmark]);
-    selection.removeAllRanges();
+    window.getSelection()?.removeAllRanges();
+    savedSelectionRef.current = null;
     setSelectionToolbar(null);
   };
 
-  const updateSelectionToolbar = useCallback(() => {
+
+  const captureSelection = useCallback(() => {
     if (typeof window === "undefined") return;
     const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
+    if (!selection || selection.rangeCount === 0 || !selection.toString().trim()) {
       setSelectionToolbar(null);
+      savedSelectionRef.current = null;
       return;
     }
 
     const text = selection.toString().trim();
-    if (!text) {
-      setSelectionToolbar(null);
-      return;
-    }
-
     const article = contentRef.current;
-    const startNode = selection.anchorNode;
-    const endNode = selection.focusNode;
-    if (!article || !startNode || !endNode) {
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!article || !anchor || !focus) {
       setSelectionToolbar(null);
       return;
     }
-
-    if (!article.contains(startNode) && !article.contains(endNode)) {
+    // Only show toolbar for selections inside the book content area
+    if (!article.contains(anchor) && !article.contains(focus)) {
       setSelectionToolbar(null);
       return;
     }
@@ -708,42 +707,51 @@ export default function BookReaderClient({
       return;
     }
 
+    // x = center of selection, y = selection top (viewport coords + scroll) → toolbar positions itself above
     const x = rect.left + rect.width / 2;
-    const y = Math.max(64, rect.top + window.scrollY - 8);
+    const y = rect.top + window.scrollY;   // top of selection in doc coords
+    savedSelectionRef.current = { text, x, y };
     setSelectionToolbar({ x, y });
   }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
 
-    const handleSelectionChange = () => {
-      if (window.getSelection()?.toString().trim()) {
-        updateSelectionToolbar();
-      } else {
-        setSelectionToolbar(null);
-      }
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleMouseUp = () => {
+      // Small delay so the browser finalises the selection before we read it
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(captureSelection, 10);
     };
 
     const handleTouchEnd = () => {
-      window.setTimeout(() => {
-        handleSelectionChange();
-      }, 30);
+      // Mobile needs a longer delay as the system selection handles appear
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(captureSelection, 200);
     };
 
-    const handleMouseUp = () => {
-      handleSelectionChange();
+    // Dismiss toolbar when user clicks elsewhere (not on the toolbar itself)
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as Element;
+      // If the click is inside the toolbar, do nothing (toolbar's own onMouseDown prevents selection loss)
+      if (target.closest("[data-highlight-toolbar]")) return;
+      setSelectionToolbar(null);
+      savedSelectionRef.current = null;
     };
 
-    document.addEventListener("selectionchange", handleSelectionChange);
-    document.addEventListener("touchend", handleTouchEnd, { passive: true });
     document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    document.addEventListener("mousedown", handleMouseDown);
 
     return () => {
-      document.removeEventListener("selectionchange", handleSelectionChange);
-      document.removeEventListener("touchend", handleTouchEnd);
+      if (debounceTimer) clearTimeout(debounceTimer);
       document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("touchend", handleTouchEnd);
+      document.removeEventListener("mousedown", handleMouseDown);
     };
-  }, [updateSelectionToolbar]);
+  }, [captureSelection]);
+
 
   const jumpToHighlight = (chapterIndex: number, scrollOffset: number) => {
     setHighlightsOpen(false);
@@ -1478,16 +1486,18 @@ export default function BookReaderClient({
         onClose={() => setHighlightsOpen(false)}
         onJump={jumpToHighlight}
       />
-      <HighlightToolbar
-        open={Boolean(selectionToolbar)}
-        x={selectionToolbar?.x ?? 0}
-        y={selectionToolbar?.y ?? 0}
-        onHighlight={(color) => createHighlightFromSelection(color as HighlightColor)}
-        onBookmark={createBookmarkFromSelection}
-        onShare={() => {
-          setSelectionToolbar(null);
-        }}
-      />
+      <div data-highlight-toolbar="">
+        <HighlightToolbar
+          open={Boolean(selectionToolbar)}
+          x={selectionToolbar?.x ?? 0}
+          y={selectionToolbar?.y ?? 0}
+          onHighlight={(color) => createHighlightFromSelection(color as HighlightColor)}
+          onBookmark={createBookmarkFromSelection}
+          onShare={() => {
+            setSelectionToolbar(null);
+          }}
+        />
+      </div>
 
       {/* Progress */}
       {chaptersCount > 0 && (
@@ -1653,9 +1663,9 @@ export default function BookReaderClient({
             className={FONT_CLASSES[fontFamily]}
             style={{ fontSize: `${fontSize}px` }}
             onClick={(e) => e.stopPropagation()}
-            onMouseUp={updateSelectionToolbar}
+            onMouseUp={captureSelection}
             onTouchEnd={() => {
-              window.setTimeout(() => updateSelectionToolbar(), 30);
+              window.setTimeout(() => captureSelection(), 200);
             }}
           >
             <div

@@ -1,10 +1,13 @@
-import { Bookmark, Highlighter, Share2 } from "lucide-react";
+"use client";
+
+import { useEffect, useRef } from "react";
+import { Bookmark } from "lucide-react";
 
 const PALETTE = [
-  { key: "gold", color: "#C9962E" },
-  { key: "navy", color: "#1D3A5F" },
-  { key: "oxblood", color: "#70193D" },
-  { key: "green", color: "#2E7D5B" },
+  { key: "gold",    label: "Dahab",   color: "#C9962E", ring: "#F5E0A0" },
+  { key: "navy",    label: "Buluug",  color: "#1D3A5F", ring: "#A8C0E0" },
+  { key: "oxblood", label: "Guduud",  color: "#70193D", ring: "#E0A0B8" },
+  { key: "green",   label: "Cagaar",  color: "#2E7D5B", ring: "#A0DEC0" },
 ] as const;
 
 export default function HighlightToolbar({
@@ -22,72 +25,93 @@ export default function HighlightToolbar({
   onBookmark: () => void;
   onShare: () => void;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Re-position every time open/x/y change, after paint, to avoid layout flash
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const el = ref.current;
+    const W = window.innerWidth;
+    const elRect = el.getBoundingClientRect();
+    const w = elRect.width || 220;
+    const h = elRect.height || 60;
+
+    // Clamp horizontal so toolbar never exits screen
+    const left = Math.max(8, Math.min(x - w / 2, W - w - 8));
+
+    // Try above selection; if not enough room, show below
+    const ARROW = 10;
+    const above = y - h - ARROW;
+    const top = above < 58 ? y + ARROW : above;
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.visibility = "visible";
+  }, [open, x, y]);
+
   if (!open) return null;
 
   return (
     <div
-      className="fixed z-50"
-      style={{
-        left: x,
-        top: y,
-        transform: "translate(-50%, -110%)",
-      }}
+      ref={ref}
+      // Start invisible — positioning useEffect makes it visible after measuring
+      style={{ visibility: "hidden", position: "fixed", zIndex: 9999, top: 0, left: 0 }}
+      // CRITICAL: prevent mousedown / pointerdown from clearing the text selection
+      onMouseDown={(e) => e.preventDefault()}
+      onPointerDown={(e) => e.preventDefault()}
     >
       <div
-        className="flex items-center gap-2 rounded-2xl border px-2 py-1.5 shadow-xl backdrop-blur-sm"
+        className="flex items-center gap-1.5 rounded-2xl border px-2.5 py-2"
         style={{
-          background: "var(--reader-bg)",
-          borderColor: "var(--reader-border)",
-          boxShadow: "0 12px 30px rgba(0,0,0,0.14)",
+          background: "var(--reader-bg, #fff)",
+          borderColor: "var(--reader-border, #e5e7eb)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.10)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
         }}
       >
-        <button
-          type="button"
-          className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em]"
-          style={{ background: "var(--reader-surface)", color: "var(--reader-heading)", border: "1px solid var(--reader-border)" }}
-          aria-label="Highlight selection"
-        >
-          <Highlighter className="h-3.5 w-3.5" />
-          Highlight
-        </button>
-
-        <div className="flex items-center gap-1.5 rounded-xl bg-[var(--reader-surface)] px-1 py-0.5" style={{ border: "1px solid var(--reader-border)" }}>
-          {PALETTE.map((opt) => (
-            <button
-              key={opt.key}
-              type="button"
-              onClick={() => onHighlight(opt.key)}
-              title={`Highlight ${opt.key}`}
-              aria-label={`Highlight in ${opt.key} color`}
-              className="h-5 w-5 rounded-full border-2 transition-transform hover:scale-105"
-              style={{
-                borderColor: "rgba(255,255,255,0.7)",
-                background: opt.color,
-              }}
+        {/* Colour swatches */}
+        {PALETTE.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onHighlight(opt.key)}
+            title={opt.label}
+            aria-label={`Xushi — ${opt.label}`}
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              background: opt.color,
+              outlineColor: opt.color,
+            }}
+          >
+            {/* Subtle inner gloss */}
+            <span
+              className="pointer-events-none absolute inset-[3px] rounded-full opacity-25"
+              style={{ background: opt.ring }}
             />
-          ))}
-        </div>
+          </button>
+        ))}
 
+        {/* Thin divider */}
+        <div
+          className="h-7 w-px shrink-0"
+          style={{ background: "var(--reader-border, #e5e7eb)" }}
+        />
+
+        {/* Bookmark button */}
         <button
           type="button"
           onClick={onBookmark}
-          className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em]"
-          style={{ background: "var(--reader-surface)", color: "var(--reader-heading)", border: "1px solid var(--reader-border)" }}
-          aria-label="Bookmark this spot"
+          title="Calaamadi"
+          aria-label="Calaamadi goobtan"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-150 hover:scale-110 active:scale-95"
+          style={{
+            background: "var(--reader-surface, #f9f6f1)",
+            color: "var(--reader-heading, #201B16)",
+            border: "1px solid var(--reader-border, #e5e7eb)",
+          }}
         >
-          <Bookmark className="h-3.5 w-3.5" />
-          Bookmark
-        </button>
-
-        <button
-          type="button"
-          onClick={onShare}
-          className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em]"
-          style={{ background: "var(--reader-surface)", color: "var(--reader-heading)", border: "1px solid var(--reader-border)" }}
-          aria-label="Share this selection"
-        >
-          <Share2 className="h-3.5 w-3.5" />
-          Share
+          <Bookmark className="h-4 w-4" />
         </button>
       </div>
     </div>
