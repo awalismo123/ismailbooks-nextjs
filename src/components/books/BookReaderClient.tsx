@@ -1176,6 +1176,7 @@ export default function BookReaderClient({
 
         {!loading && !contentError && hasContent && currentHtml && (
           <article
+            lang="so"
             className={FONT_CLASSES[fontFamily]}
             style={{ fontSize: `${fontSize}px` }}
             onClick={(e) => e.stopPropagation()}
@@ -1456,7 +1457,7 @@ export default function BookReaderClient({
       )}
 
       <style>{`
-        .reader-prose { line-height: var(--reader-line-height, 1.85); }
+        .reader-prose { line-height: var(--reader-line-height, 1.85); hyphens: none; -webkit-hyphens: none; }
         .reader-prose p { margin-bottom: 1.4em; color: var(--reader-body); }
         .reader-prose h1, .reader-prose h2, .reader-prose h3 {
           font-family: var(--font-display, serif);

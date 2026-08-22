@@ -18,7 +18,9 @@ export type IngestionResult = {
 };
 
 /**
- * Clean raw text into clean HTML paragraphs
+ * Convert raw text into semantic HTML paragraphs.
+ * Outputs bare <p> and <h2> tags — no Tailwind classes, no inline styles.
+ * All visual styling is applied by the .reader-prose CSS class in the reader.
  */
 function textToHtmlParagraphs(rawText: string): string {
   const lines = rawText
@@ -33,7 +35,7 @@ function textToHtmlParagraphs(rawText: string): string {
     // Skip page counter markers (e.g. "-- 1 of 41 --")
     if (/^--\s*\d+\s*of\s*\d+\s*--$/i.test(line) || /^page\s*\d+/i.test(line)) {
       if (currentParagraph.length > 0) {
-        html += `<p class="mb-4 leading-relaxed text-[#201B16]">${currentParagraph.join(" ")}</p>\n`;
+        html += `<p>${currentParagraph.join(" ")}</p>\n`;
         currentParagraph = [];
       }
       continue;
@@ -44,15 +46,15 @@ function textToHtmlParagraphs(rawText: string): string {
       (line.toUpperCase() === line || /^(baabka|chapter|qeybta|qaybta)\b/i.test(line))
     ) {
       if (currentParagraph.length > 0) {
-        html += `<p class="mb-4 leading-relaxed text-[#201B16]">${currentParagraph.join(" ")}</p>\n`;
+        html += `<p>${currentParagraph.join(" ")}</p>\n`;
         currentParagraph = [];
       }
-      html += `<h2 class="font-display text-2xl font-bold mt-8 mb-4 text-[#7A1F2B]">${line}</h2>\n`;
+      html += `<h2>${line}</h2>\n`;
     } else {
       currentParagraph.push(line);
       if (line.endsWith(".") || line.endsWith("!") || line.endsWith("?")) {
         if (currentParagraph.join(" ").length > 300) {
-          html += `<p class="mb-4 leading-relaxed text-[#201B16]">${currentParagraph.join(" ")}</p>\n`;
+          html += `<p>${currentParagraph.join(" ")}</p>\n`;
           currentParagraph = [];
         }
       }
@@ -60,18 +62,34 @@ function textToHtmlParagraphs(rawText: string): string {
   }
 
   if (currentParagraph.length > 0) {
-    html += `<p class="mb-4 leading-relaxed text-[#201B16]">${currentParagraph.join(" ")}</p>\n`;
+    html += `<p>${currentParagraph.join(" ")}</p>\n`;
   }
 
-  return html || `<p class="mb-4 leading-relaxed text-[#201B16]">${rawText}</p>`;
+  return html || `<p>${rawText}</p>`;
 }
 
 /**
- * Parse Microsoft Word DOCX buffer into HTML chapters
+ * Strip all class= and style= presentation attributes from an HTML string.
+ * Mammoth may emit Word-theme classes; EPUBs ship their own colors/fonts.
+ * Keeping only semantic structure so .reader-prose CSS controls all visuals.
+ */
+function stripPresentationAttrs(html: string): string {
+  return html
+    .replace(/\s+class="[^"]*"/gi, "")
+    .replace(/\s+class='[^']*'/gi, "")
+    .replace(/\s+style="[^"]*"/gi, "")
+    .replace(/\s+style='[^']*'/gi, "");
+}
+
+/**
+ * Parse Microsoft Word DOCX buffer into semantic HTML chapters.
+ * mammoth produces reliable <h1>/<h2> from Word heading styles — we use those
+ * as chapter boundaries and strip all presentation attributes afterward.
  */
 async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
   const result = await mammoth.convertToHtml({ buffer });
-  const rawHtml = result.value || "";
+  // Strip any class=/style= attrs mammoth may have carried over from Word themes
+  const rawHtml = stripPresentationAttrs(result.value || "");
 
   if (!rawHtml.trim()) {
     throw new Error("Wax nuxur ah lagama helin faylka Word-ka (DOCX).");
@@ -91,12 +109,13 @@ async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
       const titleMatch = sec.match(/<h[12][^>]*>(.*?)<\/h[12]>/i);
       const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : `Cutubka ${idx + 1}`;
 
-      const content = `<div class="chapter-content font-reader leading-relaxed">\n${sec}\n</div>`;
+      // Bare semantic wrapper — no Tailwind classes; .reader-prose handles spacing/color
+      const content = `<div class="chapter">\n${sec}\n</div>`;
       chapters.push({ fileName, content });
       toc.push({ title, file: fileName });
     });
   } else {
-    // If no headings, split into chunks of ~10 sections
+    // No headings — split into ~10 equal chunks
     const pRegex = /(?=<p[^>]*>)/i;
     const paragraphs = rawHtml.split(pRegex).filter((p) => p.trim().length > 0);
     const chunkSize = Math.max(1, Math.ceil(paragraphs.length / 10));
@@ -108,7 +127,7 @@ async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
       const fileName = `ch_${numStr}.html`;
       const title = `Qeybta ${chapNum}`;
 
-      const content = `<div class="chapter-content font-reader leading-relaxed">\n${chunk}\n</div>`;
+      const content = `<div class="chapter">\n${chunk}\n</div>`;
       chapters.push({ fileName, content });
       toc.push({ title, file: fileName });
     }
@@ -119,13 +138,17 @@ async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
 
   return {
     toc: toc.length > 0 ? toc : [{ title: "Hordhac / Buugga Oo Dhammaystiran", file: "ch_001.html" }],
-    chapters: chapters.length > 0 ? chapters : [{ fileName: "ch_001.html", content: `<div class="chapter-content font-reader leading-relaxed">${rawHtml}</div>` }],
+    chapters: chapters.length > 0 ? chapters : [{ fileName: "ch_001.html", content: `<div class="chapter">${rawHtml}</div>` }],
     pages: estPages,
   };
 }
 
 /**
- * Parse EPUB file buffer into clean HTML chapters
+ * Parse EPUB file buffer into semantic HTML chapters.
+ * Each XHTML/HTML file in the EPUB zip becomes one chapter.
+ * We strip <style> blocks, <script> blocks, and all inline style=/class=
+ * attributes from the EPUB's own HTML so its colors/fonts don't fight the
+ * .reader-prose theme variables.
  */
 async function parseEpub(buffer: Buffer): Promise<IngestionResult> {
   const zip = new AdmZip(buffer);
@@ -162,21 +185,30 @@ async function parseEpub(buffer: Buffer): Promise<IngestionResult> {
     const bodyMatch = rawText.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
     let bodyContent = bodyMatch ? bodyMatch[1] : rawText;
 
-    // Remove script and style tags
-    bodyContent = bodyContent.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+    // Remove <script> and <style> blocks (EPUB may ship its own colors/fonts)
+    bodyContent = bodyContent
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "");
 
-    // Extract chapter title
-    const titleMatch = bodyContent.match(/<h[123][^>]*>(.*?)<\/h[123]>/i) || rawText.match(/<title[^>]*>(.*?)<\/title>/i);
+    // Strip all inline style= and class= attributes so EPUB presentation
+    // cannot override the reader's .reader-prose theme variables
+    bodyContent = stripPresentationAttrs(bodyContent);
+
+    // Extract chapter title (look in cleaned body first, then raw <title>)
+    const titleMatch =
+      bodyContent.match(/<h[123][^>]*>(.*?)<\/h[123]>/i) ||
+      rawText.match(/<title[^>]*>(.*?)<\/title>/i);
     let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : `Cutubka ${idx + 1}`;
 
-    // Clean up title if it contains paths or generic terms
-    if (title.includes('/') || title.includes('.pdf') || title.length > 80) {
+    // Discard titles that look like file paths or are unreasonably long
+    if (title.includes("/") || title.includes(".pdf") || title.length > 80) {
       title = `Cutubka ${idx + 1}`;
     }
 
     const numStr = String(chapters.length + 1).padStart(3, "0");
     const fileName = `ch_${numStr}.html`;
-    const wrappedContent = `<div class="chapter-content font-reader leading-relaxed">\n${bodyContent}\n</div>`;
+    // Bare semantic wrapper — .reader-prose provides all visual styling
+    const wrappedContent = `<div class="chapter">\n${bodyContent}\n</div>`;
 
     chapters.push({ fileName, content: wrappedContent });
     toc.push({ title: title || `Cutubka ${idx + 1}`, file: fileName });
@@ -194,7 +226,11 @@ async function parseEpub(buffer: Buffer): Promise<IngestionResult> {
 }
 
 /**
- * Parse PDF file buffer into clean HTML chapters
+ * Parse PDF file buffer into semantic HTML chapters.
+ * Uses pdf-parse for text extraction. Chapter boundaries are detected by
+ * matching Somali/English chapter keywords ("Baabka", "Qeybta", etc.).
+ * Falls back to equal-size chunks when no keywords are found.
+ * NOTE: Phase 3b will add font-size-based heading detection (sign-off needed).
  */
 async function parsePdf(buffer: Buffer): Promise<IngestionResult> {
   const pdfParseMod = require("pdf-parse");
@@ -221,6 +257,9 @@ async function parsePdf(buffer: Buffer): Promise<IngestionResult> {
     throw new Error("Formaalka pdf-parse lagama helin nidaamka");
   }
 
+  // Rejoin soft-hyphenated line breaks from PDF extraction (e.g. "aqoon-\nyahan" -> "aqoonyahan")
+  rawText = rawText.replace(/-\r?\n([a-zà-öø-ÿ])/gi, "$1");
+
   // Look for chapter splits (e.g. "Baabka 1", "Chapter 1", "Qeybta 1")
   const chapterRegex = /(?=(?:baabka|chapter|qeybta|qaybta)\s+\d+)/i;
   const rawChapters = rawText.split(chapterRegex).filter((c: string) => c.trim().length > 50);
@@ -233,13 +272,10 @@ async function parsePdf(buffer: Buffer): Promise<IngestionResult> {
       const numStr = String(index + 1).padStart(3, "0");
       const fileName = `ch_${numStr}.html`;
       const lines = chapText.trim().split(/\r?\n/);
-      const title = lines[0]?.substring(0, 80).trim() || `Chapter ${index + 1}`;
+      const title = lines[0]?.substring(0, 80).trim() || `Cutubka ${index + 1}`;
 
-      const htmlContent = `
-<div class="chapter-content font-reader leading-relaxed">
-  <h1 class="font-display text-3xl font-extrabold text-[#7A1F2B] mb-6">${title}</h1>
-  ${textToHtmlParagraphs(chapText)}
-</div>`;
+      // Bare semantic HTML — no Tailwind classes; .reader-prose handles all styling
+      const htmlContent = `<div class="chapter">\n<h1>${title}</h1>\n${textToHtmlParagraphs(chapText)}\n</div>`;
 
       chapters.push({ fileName, content: htmlContent });
       toc.push({ title, file: fileName });
@@ -256,11 +292,8 @@ async function parsePdf(buffer: Buffer): Promise<IngestionResult> {
       const fileName = `ch_${numStr}.html`;
       const title = `Qeybta ${chapNum}`;
 
-      const htmlContent = `
-<div class="chapter-content font-reader leading-relaxed">
-  <h1 class="font-display text-3xl font-extrabold text-[#7A1F2B] mb-6">${title}</h1>
-  ${textToHtmlParagraphs(chunk)}
-</div>`;
+      // Bare semantic HTML — no Tailwind classes
+      const htmlContent = `<div class="chapter">\n<h1>${title}</h1>\n${textToHtmlParagraphs(chunk)}\n</div>`;
 
       chapters.push({ fileName, content: htmlContent });
       toc.push({ title, file: fileName });
@@ -310,7 +343,8 @@ export async function processBookFileBuffer(
   // 4. Plain Text or HTML
   if (ext === "txt" || ext === "html" || ext === "htm") {
     const textContent = buffer.toString("utf-8");
-    const htmlContent = `<div class="chapter-content font-reader leading-relaxed">${textToHtmlParagraphs(textContent)}</div>`;
+    // Bare semantic wrapper — .reader-prose provides all visual styling
+    const htmlContent = `<div class="chapter">${textToHtmlParagraphs(textContent)}</div>`;
     return {
       toc: [{ title: "Hordhac / Buugga Oo Dhammaystiran", file: "ch_001.html" }],
       chapters: [{ fileName: "ch_001.html", content: htmlContent }],

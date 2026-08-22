@@ -9,7 +9,7 @@ import {
   ShieldCheck, Users, BookOpen, CreditCard, FileText, Check, X, Eye,
   TrendingUp, LayoutDashboard, LogOut, ExternalLink, Activity, Wallet,
   Image as ImageIcon, Ban, CheckCircle2, Library, Plus, Pencil, Trash2,
-  BookMarked, Sparkles, Search, Copy, Tag, Key, Lock, ArrowLeft
+  BookMarked, Sparkles, Search, Copy, Tag, Key, Lock, ArrowLeft, List
 } from "lucide-react";
 import { approvePaymentAction, rejectPaymentAction } from "@/app/actions/payment";
 import {
@@ -23,6 +23,7 @@ import BookFormModal from "./BookFormModal";
 import BlogPostFormModal from "./BlogPostFormModal";
 import BlogCategoryModal from "./BlogCategoryModal";
 import SummaryFormModal, { type EditableSummary } from "./SummaryFormModal";
+import TocReviewModal from "./TocReviewModal";
 
 type Payment = {
   id: number; user: string; book: string; method: string; ref: string;
@@ -601,6 +602,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
   const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [paymentSearch, setPaymentSearch] = useState("");
   const [bookModal, setBookModal] = useState<{ open: boolean; book: Book | null }>({ open: false, book: null });
+  const [tocModal, setTocModal] = useState<{ open: boolean; bookId: string; bookTitle: string } | null>(null);
   const [blogModal, setBlogModal] = useState<{ open: boolean; post: BlogPost | null }>({ open: false, post: null });
   const [summaryModal, setSummaryModal] = useState<{ open: boolean; summary: EditableSummary | null }>({ open: false, summary: null });
   const [userDetailModal, setUserDetailModal] = useState<UserData | null>(null);
@@ -1164,6 +1166,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
                               <div className="flex items-center gap-2">
                                 <Link href={`/books/${b.id}/read?returnTo=${buildReturnTarget("/admin", { tab: "books" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[#FBF7F0]" title="Akhriso Buugga (Reader)"><BookOpen className="w-3.5 h-3.5" /></Link>
                                 <Link href={`/books/${b.id}?returnTo=${buildReturnTarget("/admin", { tab: "books" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg Faahfaahinta"><Eye className="w-3.5 h-3.5" /></Link>
+                                <button onClick={() => setTocModal({ open: true, bookId: String(b.id), bookTitle: b.title })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg & Wax ka beddel Cutubyada (TOC)"><List className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => setBookModal({ open: true, book: b })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[rgba(122,31,43,0.06)]" title="Wax ka beddel / Soo rar Document"><Pencil className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => handleBookActive(b.id, b.is_active)} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#6B5F52] hover:bg-[#FBF7F0]" title={b.is_active ? "Kaa dhig Qarsoon" : "Ka dhig Live"}><Ban className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => handleDeleteBook(b.id, b.title)} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50" title="Tirtir Buugga"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -1764,6 +1767,16 @@ export default function AdminClient({ data }: { data: AdminData }) {
           book={bookModal.book}
           onClose={() => setBookModal({ open: false, book: null })}
           onSaved={() => { setBookModal({ open: false, book: null }); router.refresh(); }}
+        />
+      )}
+
+      {/* TOC REVIEW MODAL */}
+      {tocModal?.open && (
+        <TocReviewModal
+          bookId={tocModal.bookId}
+          bookTitle={tocModal.bookTitle}
+          onClose={() => setTocModal(null)}
+          onSaved={() => { setTocModal(null); router.refresh(); }}
         />
       )}
 

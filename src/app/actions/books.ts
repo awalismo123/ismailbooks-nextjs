@@ -125,14 +125,20 @@ export async function saveBookAction(
           upsert: true,
         });
 
-      // Upload each chapter HTML file
-      for (const chap of ingestion.chapters) {
-        await adminSupabase.storage
-          .from("book-content")
-          .upload(`${targetId}/${chap.fileName}`, Buffer.from(chap.content), {
-            contentType: "text/html",
-            upsert: true,
-          });
+      // Upload chapter HTML files in batches of 6 for fast parallel upload
+      const BATCH_SIZE = 6;
+      for (let i = 0; i < ingestion.chapters.length; i += BATCH_SIZE) {
+        const chunk = ingestion.chapters.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          chunk.map((chap) =>
+            adminSupabase.storage
+              .from("book-content")
+              .upload(`${targetId}/${chap.fileName}`, Buffer.from(chap.content), {
+                contentType: "text/html",
+                upsert: true,
+              })
+          )
+        );
       }
     } catch (err: any) {
       console.error("Book ingestion error:", err);
@@ -146,6 +152,100 @@ export async function saveBookAction(
   revalidatePath("/books");
   revalidatePath("/");
   return { success: true };
+}
+
+// ── Update Book Table of Contents (TOC) ──────────────────────────────────────
+export async function updateTocAction(
+  bookId: string,
+  toc: { title: string; file: string }[]
+): Promise<{ success?: boolean; error?: string }> {
+  await requireAdmin();
+  const adminSupabase = await createAdminClient();
+
+  try {
+    const tocStr = JSON.stringify(toc, null, 2);
+    const { error } = await adminSupabase.storage
+      .from("book-content")
+      .upload(`${bookId}/toc.json`, Buffer.from(tocStr), {
+        contentType: "application/json",
+        upsert: true,
+      });
+
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin");
+    revalidatePath(`/books/${bookId}/read`);
+    return { success: true };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+// ── Re-ingest an Existing Uploaded Book ─────────────────────────────────────
+export async function reingestBookAction(
+  bookId: string
+): Promise<{ success?: boolean; error?: string }> {
+  await requireAdmin();
+  const adminSupabase = await createAdminClient();
+
+  try {
+    const { data: book, error: fetchErr } = await adminSupabase
+      .from("books")
+      .select("id, file_link")
+      .eq("id", bookId)
+      .single();
+
+    if (fetchErr || !book || !book.file_link) {
+      return { error: "Faylka buugga lagama helin kaydka (file_link is missing)." };
+    }
+
+    const { data: fileData, error: downloadErr } = await adminSupabase.storage
+      .from("book-content")
+      .download(book.file_link);
+
+    if (downloadErr || !fileData) {
+      return { error: `Faylka buugga waa la soo rogi waayay: ${downloadErr?.message}` };
+    }
+
+    const arrayBuf = await fileData.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+    const fileName = book.file_link.split("/").pop() || "book.pdf";
+
+    const ingestion = await processBookFileBuffer(buffer, fileName);
+
+    if (ingestion.pages) {
+      await adminSupabase.from("books").update({ pages: ingestion.pages }).eq("id", bookId);
+    }
+
+    const tocStr = JSON.stringify(ingestion.toc, null, 2);
+    await adminSupabase.storage
+      .from("book-content")
+      .upload(`${bookId}/toc.json`, Buffer.from(tocStr), {
+        contentType: "application/json",
+        upsert: true,
+      });
+
+    const BATCH_SIZE = 6;
+    for (let i = 0; i < ingestion.chapters.length; i += BATCH_SIZE) {
+      const chunk = ingestion.chapters.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        chunk.map((chap) =>
+          adminSupabase.storage
+            .from("book-content")
+            .upload(`${bookId}/${chap.fileName}`, Buffer.from(chap.content), {
+              contentType: "text/html",
+              upsert: true,
+            })
+        )
+      );
+    }
+
+    revalidatePath("/admin");
+    revalidatePath(`/books/${bookId}/read`);
+    return { success: true };
+  } catch (err: any) {
+    return { error: `Khalad ayaa dhacay intii lagu guda jiray re-ingestion: ${err.message}` };
+  }
 }
 
 // ── Delete a Book ────────────────────────────────────────────────────────────

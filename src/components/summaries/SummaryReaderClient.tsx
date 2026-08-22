@@ -216,7 +216,7 @@ export default function SummaryReaderClient({
           </div>
         )}
 
-        <article className={`${FONT_CLASSES[fontFamily]} ${LINE_SPACING_CLASSES[lineSpacing]}`} style={{ fontSize: `${fontSize}px` }}>
+        <article lang="so" className={`${FONT_CLASSES[fontFamily]} ${LINE_SPACING_CLASSES[lineSpacing]}`} style={{ fontSize: `${fontSize}px` }}>
           <div
             className="reader-prose pb-20"
             dangerouslySetInnerHTML={{ __html: contentHtml || "<p>Nuxurka soo-koobidda lagama helin.</p>" }}
@@ -269,7 +269,7 @@ export default function SummaryReaderClient({
       />
 
       <style>{`
-        .reader-prose { line-height: 1.85; }
+        .reader-prose { line-height: 1.85; hyphens: none; -webkit-hyphens: none; }
         .reader-prose p { margin-bottom: 1.4em; color: var(--reader-body); }
         .reader-prose h1, .reader-prose h2, .reader-prose h3 {
           font-family: var(--font-display, serif);
