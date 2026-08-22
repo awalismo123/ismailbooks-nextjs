@@ -90,6 +90,12 @@ export async function submitPaymentAction(formData: FormData) {
     .getPublicUrl(fileName);
   const receiptUrl = urlData.publicUrl;
 
+  const isGift = formData.get("isGift") === "true";
+  const giftNote = (formData.get("giftNote") as string)?.trim();
+  const giftAdminNote = isGift
+    ? `🎁 GIFT PURCHASE${giftNote ? `: ${giftNote}` : ""}`
+    : null;
+
   // ── Insert pending payment with receipt URL ──
   const { error } = await supabase.from("payments").insert({
     auth_user_id: user.id,
@@ -100,6 +106,7 @@ export async function submitPaymentAction(formData: FormData) {
     amount: amount,
     status: "pending",
     proof_image_path: receiptUrl,
+    admin_notes: giftAdminNote,
     // Legacy bigint columns — use 0 as placeholder
     payment_id: 0,
     user_id: 0,

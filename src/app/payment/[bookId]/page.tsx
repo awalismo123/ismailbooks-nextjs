@@ -94,6 +94,8 @@ export default async function PaymentPage({
     );
   }
 
+  const isGift = search.isGift === "true" || search.gift === "1";
+
   /* ── Paid item — render checkout form ── */
   return (
     <div className="flex min-h-screen flex-col bg-[#FBF7F0]">
@@ -104,6 +106,7 @@ export default async function PaymentPage({
           itemType={itemType}
           itemTitle={item.title}
           itemPrice={`$${Number(item.price ?? 0).toLocaleString()}`}
+          isGift={isGift}
         />
       </main>
       <Footer />

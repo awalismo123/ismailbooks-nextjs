@@ -35,6 +35,7 @@ import ReaderSettingsSheet, {
   type FontFamily,
   type LineSpacing,
 } from "@/components/reader/ReaderSettingsSheet";
+import { BookCard, type BookCardData } from "@/components/books/BookCard";
 
 type TocItem = { title: string; file: string };
 
@@ -197,6 +198,7 @@ export default function BookReaderClient({
   returnTarget,
   initialChapter = 0,
   initialScrollOffset = 0,
+  relatedBooks = [],
 }: {
   bookId: string;
   itemType?: "book" | "summary";
@@ -207,6 +209,7 @@ export default function BookReaderClient({
   returnTarget?: string;
   initialChapter?: number;
   initialScrollOffset?: number;
+  relatedBooks?: BookCardData[];
 }) {
   const storageId = itemType === "summary" ? `summary_${bookId}` : bookId;
   const [fontSize, setFontSize] = useState(18);
@@ -230,10 +233,25 @@ export default function BookReaderClient({
   const [streakDays, setStreakDays] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
   const [offlineBanner, setOfflineBanner] = useState(false);
+  const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(false);
   const [resumeBanner, setResumeBanner] = useState<{
     chapter: number;
     pct: number;
   } | null>(null);
+
+  useEffect(() => {
+    try {
+      const dismissed = sessionStorage.getItem(`ib_owner_nudge_${bookId}`);
+      if (dismissed === "true") setOwnerNudgeDismissed(true);
+    } catch {}
+  }, [bookId]);
+
+  const dismissOwnerNudge = useCallback(() => {
+    setOwnerNudgeDismissed(true);
+    try {
+      sessionStorage.setItem(`ib_owner_nudge_${bookId}`, "true");
+    } catch {}
+  }, [bookId]);
 
   // Phase 3 state
   const touchStartX = useRef<number | null>(null);
@@ -1189,6 +1207,92 @@ export default function BookReaderClient({
           </article>
         )}
 
+        {/* Related Books Strip — inline after chapter finishes */}
+        {!loading && !contentError && hasContent && relatedBooks && relatedBooks.length > 0 && (
+          <div
+            className="mt-14 pt-8 border-t border-[var(--reader-border)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-display text-base sm:text-lg font-extrabold" style={{ color: "var(--reader-heading)" }}>
+                  Akhristayaashu waxay sidoo kale jeclaadeen
+                </h3>
+                <p className="text-xs mt-0.5" style={{ color: "var(--reader-muted)" }}>
+                  Buugaag kale oo xioso leh oo aad ka heli karto maktabada
+                </p>
+              </div>
+              <Link
+                href="/books"
+                className="text-xs font-bold hover:underline flex items-center gap-1 shrink-0 ml-2"
+                style={{ color: "var(--reader-accent)" }}
+              >
+                Dhammaan →
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {relatedBooks.map((b) => (
+                <BookCard key={b.id} book={b} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Love this book? Soft Nudge for Owners (non-preview) */}
+        {!isPreview && !ownerNudgeDismissed && !loading && !contentError && hasContent && (timeSpentRef.current >= 600 || scrollProgressPct >= 85) && (
+          <div
+            className="mt-10 rounded-2xl border border-[var(--reader-border)] p-6 sm:p-7 relative transition-all shadow-sm"
+            style={{ background: "var(--reader-surface)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={dismissOwnerNudge}
+              className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--reader-border)] opacity-60 hover:opacity-100 transition-opacity"
+              style={{ color: "var(--reader-muted)" }}
+              title="Ka xidh"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#C9962E]/15 text-[#C9962E]">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-display text-base font-extrabold" style={{ color: "var(--reader-heading)" }}>
+                  Miyaad ka heshay buuggan?
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed max-w-lg" style={{ color: "var(--reader-muted)" }}>
+                  Waad ku mahadsan tahay akhriska! Maadaama aad buuggan leedahay, waad u hdiyayn kartaa saaxiib ama waxaad brawsarsan kartaa buugaagta kale ee maktabada.
+                </p>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`/payment/${bookId}?isGift=true`}
+                    className="btn btn-primary btn-sm text-xs"
+                  >
+                    🎁 U hdiyay Buuggan
+                  </Link>
+                  <Link
+                    href="/books"
+                    className="btn btn-secondary btn-sm text-xs"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Brawsar Maktabada
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={dismissOwnerNudge}
+                    className="btn btn-ghost btn-sm text-xs opacity-75"
+                  >
+                    Ka xidh
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Preview CTA — only after reaching end */}
         {isPreview && currentChapter === previewLimit && !loading && showPreviewCta && (
           <div
@@ -1209,9 +1313,12 @@ export default function BookReaderClient({
                 <CreditCard className="h-4 w-4" />
                 Iibso Buugga Hadda
               </Link>
+              <Link href={`/payment/${bookId}?isGift=true`} className="btn btn-secondary btn-block sm:w-auto">
+                🎁 U hdiyay Saaxiib
+              </Link>
               <Link
                 href={`/books/${bookId}`}
-                className="btn btn-secondary btn-block sm:w-auto"
+                className="btn btn-ghost btn-block sm:w-auto"
               >
                 Eeg Faahfaahinta
               </Link>

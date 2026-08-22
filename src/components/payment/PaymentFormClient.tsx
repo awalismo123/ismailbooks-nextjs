@@ -37,14 +37,17 @@ export default function PaymentFormClient({
   itemType,
   itemTitle,
   itemPrice,
+  isGift = false,
 }: {
   itemId: string;
   itemType: "book" | "summary";
   itemTitle: string;
   itemPrice: string;
+  isGift?: boolean;
 }) {
   const [method, setMethod] = useState("EVC");
   const [ref, setRef] = useState("");
+  const [giftNote, setGiftNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
@@ -131,6 +134,23 @@ export default function PaymentFormClient({
           Raac tallaabooyinkan si aad u hesho buuggaaga 24 saacadood gudahood.
         </p>
       </div>
+
+      {/* Gift Banner */}
+      {isGift && (
+        <div className="mb-6 rounded-2xl border border-[#C9962E]/40 bg-[#FBF7F0] p-4.5 sm:p-5 flex items-start gap-3.5 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C9962E]/20 text-lg">
+            🎁
+          </div>
+          <div>
+            <h4 className="font-display text-sm sm:text-base font-extrabold text-[#201B16] m-0">
+              Bixinta Hadiyadda Buugga ("Gift Purchase")
+            </h4>
+            <p className="mt-1 text-xs text-[#6B5F52] leading-relaxed m-0">
+              Waxaad buuggan u iibinaysaa oo ugu hdiyaynaysaa saaxiib ama qof aad jeceshahay.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="mb-2">
@@ -305,6 +325,25 @@ export default function PaymentFormClient({
                 )}
               </div>
             </div>
+
+            {/* Gift recipient note (optional) */}
+            {isGift && (
+              <div className="field mt-4">
+                <label htmlFor="giftNote" className="text-sm font-extrabold text-[#201B16]">
+                  🎁 Magaca Qofka Loo Hdiyaynayo / Farriin <span className="text-xs font-normal text-[#6B5F52]">(Doorasho)</span>
+                </label>
+                <input
+                  id="giftNote"
+                  name="giftNote"
+                  type="text"
+                  value={giftNote}
+                  onChange={(e) => setGiftNote(e.target.value)}
+                  placeholder="Tusaale: Hadiyad ku socota Axmed..."
+                  className="input-field bg-[#FBF7F0]/40 text-sm"
+                />
+              </div>
+            )}
+            <input type="hidden" name="isGift" value={isGift ? "true" : "false"} />
 
             {/* ── Screenshot upload ── */}
             <div id="receipt-upload" className="mt-5">
