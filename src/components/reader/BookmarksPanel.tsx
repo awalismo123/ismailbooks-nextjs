@@ -49,8 +49,8 @@ export default function BookmarksPanel({
               <Bookmark className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "var(--reader-muted)" }}>Calaamadaha</p>
-              <h3 className="text-base font-extrabold" style={{ color: "var(--reader-heading)" }}>Boqolleyda</h3>
+              <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "var(--reader-muted)" }}>Buuggan</p>
+              <h3 className="text-base font-extrabold" style={{ color: "var(--reader-heading)" }}>Calaamadaha</h3>
             </div>
           </div>
 

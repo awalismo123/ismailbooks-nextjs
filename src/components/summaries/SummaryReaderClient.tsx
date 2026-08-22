@@ -83,34 +83,49 @@ export default function SummaryReaderClient({
   price,
   returnTarget,
 }: SummaryReaderClientProps) {
-  const [fontSize, setFontSize] = useState(18);
-  const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
-  const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
-  const [lineSpacing, setLineSpacing] = useState<LineSpacing>("normal");
-  const [showSettings, setShowSettings] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-
-  useEffect(() => {
+  const [fontSize, setFontSize] = useState<number>(() => {
     try {
-      const savedTheme = localStorage.getItem("ib_reader_theme") as ReaderTheme | null;
-      const savedFontSize = localStorage.getItem("ib_reader_font_size");
-      const savedFontFamily = localStorage.getItem("ib_reader_font_family") as FontFamily | null;
-      const savedLineSpacing = localStorage.getItem("ib_reader_line_spacing") as LineSpacing | null;
-
-      if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
-        setReaderTheme(savedTheme);
-      }
-      if (savedFontSize) {
-        const n = Number(savedFontSize);
-        if (n >= 14 && n <= 30) setFontSize(n);
-      }
-      if (savedFontFamily && ["serif", "sans", "mono", "dyslexia"].includes(savedFontFamily)) {
-        setFontFamily(savedFontFamily);
-      }
-      if (savedLineSpacing && ["normal", "relaxed"].includes(savedLineSpacing)) {
-        setLineSpacing(savedLineSpacing);
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("ib_reader_font_size");
+        const n = Number(saved);
+        if (saved && n >= 14 && n <= 30) return n;
       }
     } catch {}
+    return 18;
+  });
+  const [fontFamily, setFontFamily] = useState<FontFamily>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("ib_reader_font_family") as FontFamily;
+        if (saved && ["serif", "sans", "mono", "dyslexia"].includes(saved)) return saved;
+      }
+    } catch {}
+    return "serif";
+  });
+  const [readerTheme, setReaderTheme] = useState<ReaderTheme>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("ib_reader_theme") as ReaderTheme;
+        if (saved && ["light", "sepia", "night"].includes(saved)) return saved;
+      }
+    } catch {}
+    return "light";
+  });
+  const [lineSpacing, setLineSpacing] = useState<LineSpacing>(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("ib_reader_line_spacing") as LineSpacing;
+        if (saved && ["normal", "relaxed"].includes(saved)) return saved;
+      }
+    } catch {}
+    return "normal";
+  });
+  const [showSettings, setShowSettings] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
   }, []);
 
   const changeTheme = (t: ReaderTheme) => {
@@ -147,6 +162,10 @@ export default function SummaryReaderClient({
   };
 
   const themeVars = THEME_STYLES[readerTheme];
+
+  if (!mounted) {
+    return <div style={{ background: "#FFFFFF", minHeight: "100vh" }} />;
+  }
 
   return (
     <div

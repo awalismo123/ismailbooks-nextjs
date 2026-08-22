@@ -1102,8 +1102,17 @@ export default function BookReaderClient({
     setChromeVisible(true);
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const themeVars = THEME_STYLES[readerTheme];
   const chromeOpen = chromeVisible || settingsOpen || tocOpen || bookmarksOpen || highlightsOpen || paywallModalOpen;
+
+  if (!mounted) {
+    return <div style={{ background: "#FFFFFF", minHeight: "100vh" }} />;
+  }
 
   return (
     <div
