@@ -1,10 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useSession } from "next-auth/react";
-import { saveProgressAction, loadProgressAction, syncBookmarksAction, syncHighlightsAction, loadBookmarksAction, loadHighlightsAction } from "@/app/actions/reader";
+import {
+  saveProgressAction,
+  loadProgressAction,
+  syncBookmarksAction,
+  syncHighlightsAction,
+  loadBookmarksAction,
+  loadHighlightsAction,
+  deleteBookmarkAction,
+  deleteHighlightAction,
+} from "@/app/actions/reader";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft,
@@ -28,6 +37,7 @@ import {
   Settings2,
   Maximize,
   Minimize,
+  Highlighter,
 } from "lucide-react";
 
 import ReaderBackButton from "@/components/reader/ReaderBackButton";
@@ -37,9 +47,11 @@ import ReaderSettingsSheet, {
   type FontFamily,
   type LineSpacing,
 } from "@/components/reader/ReaderSettingsSheet";
-import BookmarksPanel, { type BookmarkEntry } from "@/components/reader/BookmarksPanel";
-import HighlightsPanel, { type HighlightEntry, type HighlightColor } from "@/components/reader/HighlightsPanel";
+import { type BookmarkEntry } from "@/components/reader/BookmarksPanel";
+import { type HighlightEntry, type HighlightColor } from "@/components/reader/HighlightsPanel";
+import AnnotationsSheet, { type AnnotationsTab } from "@/components/reader/AnnotationsSheet";
 import HighlightToolbar from "@/components/reader/HighlightToolbar";
+import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
 import { BookCard, type BookCardData } from "@/components/books/BookCard";
 
 type TocItem = { title: string; file: string };
@@ -260,11 +272,12 @@ export default function BookReaderClient({
   const [supabaseLoggedIn, setSupabaseLoggedIn] = useState(false);
   const isLoggedIn = Boolean(session?.user) || supabaseLoggedIn;
 
-  const [bookmarksOpen, setBookmarksOpen] = useState(false);
-  const [highlightsOpen, setHighlightsOpen] = useState(false);
-  const [selectionToolbar, setSelectionToolbar] = useState<{ x: number; y: number } | null>(null);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotationsTab, setAnnotationsTab] = useState<AnnotationsTab>("bookmarks");
   const contentRef = useRef<HTMLElement | null>(null);
   const didHydrateRemoteAnnotations = useRef(false);
+  const bookmarksRef = useRef<BookmarkEntry[]>([]);
+  const highlightsRef = useRef<HighlightEntry[]>([]);
   const [highlights, setHighlights] = useState<HighlightEntry[]>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -479,11 +492,13 @@ export default function BookReaderClient({
   };
 
   const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>(() => readBookmarks());
+  bookmarksRef.current = bookmarks;
+  highlightsRef.current = highlights;
 
   const mergeLocalAndRemoteBookmarks = useCallback((localEntries: BookmarkEntry[], remoteEntries: BookmarkEntry[]) => {
     const merged = new Map<string, BookmarkEntry>();
 
-    [...localEntries, ...remoteEntries].forEach((entry) => {
+    [...remoteEntries, ...localEntries].forEach((entry) => {
       const key = `${entry.bookId}|${entry.chapterIndex}|${Math.round(entry.scrollOffset / 150)}|${entry.previewText.slice(0, 60)}`;
       const existing = merged.get(key);
       if (!existing || new Date(entry.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
@@ -497,7 +512,7 @@ export default function BookReaderClient({
   const mergeLocalAndRemoteHighlights = useCallback((localEntries: HighlightEntry[], remoteEntries: HighlightEntry[]) => {
     const merged = new Map<string, HighlightEntry>();
 
-    [...localEntries, ...remoteEntries].forEach((entry) => {
+    [...remoteEntries, ...localEntries].forEach((entry) => {
       const key = `${entry.bookId}|${entry.chapterIndex}|${entry.color}|${entry.text.slice(0, 60)}`;
       const existing = merged.get(key);
       if (!existing || new Date(entry.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
@@ -524,7 +539,11 @@ export default function BookReaderClient({
     await syncHighlightsAction(formData);
   }, [bookId, isLoggedIn]);
 
-  const isBookmarked = bookmarks.some((bookmark) => bookmark.chapterIndex === currentChapter);
+  const isBookmarked = bookmarks.some(
+    (bookmark) =>
+      bookmark.chapterIndex === currentChapter &&
+      Math.abs(bookmark.scrollOffset - scrollOffsetRef.current) < 250,
+  );
 
   const persistBookmarks = useCallback((next: BookmarkEntry[]) => {
     setBookmarks(next);
@@ -535,6 +554,16 @@ export default function BookReaderClient({
       void syncBookmarksToCloud(next);
     }
   }, [bookmarkListKey, isLoggedIn, syncBookmarksToCloud]);
+
+  const persistHighlights = useCallback((next: HighlightEntry[]) => {
+    setHighlights(next);
+    try {
+      localStorage.setItem(`ib_highlights_${bookId}`, JSON.stringify(next));
+    } catch {}
+    if (isLoggedIn) {
+      void syncHighlightsToCloud(next);
+    }
+  }, [bookId, isLoggedIn, syncHighlightsToCloud]);
 
   const toggleBookmark = () => {
     try {
@@ -565,7 +594,7 @@ export default function BookReaderClient({
       }
 
       const nextBookmark: BookmarkEntry = {
-        id: `bookmark-${bookId}-${currentChapter}-${Math.round(scrollOffsetRef.current / 150)}`,
+        id: `bookmark-${bookId}-${currentChapter}-${Date.now()}`,
         bookId,
         chapterIndex: currentChapter,
         chapterTitle,
@@ -574,30 +603,83 @@ export default function BookReaderClient({
         createdAt: new Date().toISOString(),
       };
 
-      persistBookmarks([...bookmarks, nextBookmark]);
+      persistBookmarks([nextBookmark, ...bookmarks]);
     } catch {}
   };
 
-  const jumpToBookmark = (chapterIndex: number, scrollOffset: number) => {
-    setBookmarksOpen(false);
-    setCurrentChapter(chapterIndex);
-    pendingScrollRestore.current = scrollOffset;
-    scrollOffsetRef.current = scrollOffset;
+  const jumpToBookmark = (bookmark: BookmarkEntry) => {
+    setAnnotationsOpen(false);
+    setCurrentChapter(bookmark.chapterIndex);
+    pendingScrollRestore.current = bookmark.scrollOffset;
+    scrollOffsetRef.current = bookmark.scrollOffset;
     setChromeVisible(true);
-    setTimeout(() => {
-      window.scrollTo({ top: scrollOffset, behavior: "auto" });
-    }, 50);
+    window.setTimeout(() => {
+      window.scrollTo({ top: bookmark.scrollOffset, behavior: "smooth" });
+    }, 80);
   };
 
-  const persistHighlights = useCallback((next: HighlightEntry[]) => {
-    setHighlights(next);
-    try {
-      localStorage.setItem(`ib_highlights_${bookId}`, JSON.stringify(next));
-    } catch {}
-    if (isLoggedIn) {
-      void syncHighlightsToCloud(next);
-    }
-  }, [bookId, isLoggedIn, syncHighlightsToCloud]);
+  const jumpToHighlight = (highlight: HighlightEntry) => {
+    setAnnotationsOpen(false);
+    setCurrentChapter(highlight.chapterIndex);
+    setChromeVisible(true);
+    window.setTimeout(() => {
+      const mark = document.querySelector(
+        `mark[data-hl-id="${CSS.escape(highlight.id)}"]`,
+      ) as HTMLElement | null;
+      if (mark) {
+        mark.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      window.scrollTo({ top: highlight.scrollOffset || 0, behavior: "smooth" });
+    }, 120);
+  };
+
+  const createHighlight = (text: string, color: HighlightColor = "gold") => {
+    const cleaned = text.replace(/\s+/g, " ").trim();
+    if (cleaned.length < 2) return;
+
+    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
+    const nextHighlight: HighlightEntry = {
+      id: `highlight-${bookId}-${currentChapter}-${Date.now()}`,
+      bookId,
+      chapterIndex: currentChapter,
+      chapterTitle,
+      text: cleaned,
+      color,
+      scrollOffset: scrollOffsetRef.current,
+      createdAt: new Date().toISOString(),
+    };
+
+    persistHighlights([nextHighlight, ...highlightsRef.current]);
+  };
+
+  const createBookmarkFromText = (text: string) => {
+    const cleaned = text.replace(/\s+/g, " ").trim();
+    if (cleaned.length < 2) return;
+
+    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
+    const nextBookmark: BookmarkEntry = {
+      id: `bookmark-${bookId}-${currentChapter}-${Date.now()}`,
+      bookId,
+      chapterIndex: currentChapter,
+      chapterTitle,
+      previewText: cleaned.length > 160 ? `${cleaned.slice(0, 157)}...` : cleaned,
+      scrollOffset: scrollOffsetRef.current,
+      createdAt: new Date().toISOString(),
+    };
+
+    persistBookmarks([nextBookmark, ...bookmarksRef.current]);
+  };
+
+  const removeBookmark = (id: string) => {
+    persistBookmarks(bookmarksRef.current.filter((item) => item.id !== id));
+    if (isLoggedIn) void deleteBookmarkAction(id);
+  };
+
+  const removeHighlight = (id: string) => {
+    persistHighlights(highlightsRef.current.filter((item) => item.id !== id));
+    if (isLoggedIn) void deleteHighlightAction(id);
+  };
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -614,160 +696,35 @@ export default function BookReaderClient({
           loadHighlightsAction(Number(bookId)),
         ]);
 
-        const mergedBookmarks = mergeLocalAndRemoteBookmarks(bookmarks, remoteBookmarks);
-        const mergedHighlights = mergeLocalAndRemoteHighlights(highlights, remoteHighlights as HighlightEntry[]);
+        const mergedBookmarks = mergeLocalAndRemoteBookmarks(
+          bookmarksRef.current,
+          remoteBookmarks,
+        );
+        const mergedHighlights = mergeLocalAndRemoteHighlights(
+          highlightsRef.current,
+          remoteHighlights as HighlightEntry[],
+        );
 
-        if (mergedBookmarks.length !== bookmarks.length || mergedHighlights.length !== highlights.length) {
-          persistBookmarks(mergedBookmarks);
-          persistHighlights(mergedHighlights);
-        }
+        persistBookmarks(mergedBookmarks);
+        persistHighlights(mergedHighlights);
       } catch {}
     };
 
     void loadRemoteAnnotations();
-  }, [bookId, bookmarks, highlights, isLoggedIn, mergeLocalAndRemoteBookmarks, mergeLocalAndRemoteHighlights, persistBookmarks, persistHighlights]);
+  }, [
+    bookId,
+    isLoggedIn,
+    mergeLocalAndRemoteBookmarks,
+    mergeLocalAndRemoteHighlights,
+    persistBookmarks,
+    persistHighlights,
+  ]);
 
-  // Ref that holds the captured selection text — survives toolbar button mousedown without clearing browser selection
-  const savedSelectionRef = useRef<{ text: string; x: number; y: number } | null>(null);
+  const annotatedHtml = useMemo(() => {
+    const chapterItems = highlights.filter((h) => h.chapterIndex === currentChapter);
+    return applyHighlightsToHtml(currentHtml, chapterItems);
+  }, [currentHtml, highlights, currentChapter]);
 
-  const createHighlightFromSelection = (color: HighlightColor = "gold") => {
-    // Prefer live selection; fall back to saved ref (survives toolbar mousedown)
-    const liveText = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
-    const text = liveText || savedSelectionRef.current?.text || "";
-    if (!text) return;
-
-    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
-    const nextHighlight: HighlightEntry = {
-      id: `highlight-${bookId}-${currentChapter}-${Date.now()}`,
-      bookId,
-      chapterIndex: currentChapter,
-      chapterTitle,
-      text,
-      color,
-      scrollOffset: scrollOffsetRef.current,
-      createdAt: new Date().toISOString(),
-    };
-
-    persistHighlights([nextHighlight, ...highlights]);
-    window.getSelection()?.removeAllRanges();
-    savedSelectionRef.current = null;
-    setSelectionToolbar(null);
-  };
-
-  const createBookmarkFromSelection = () => {
-    const liveText = typeof window !== "undefined" ? window.getSelection()?.toString().trim() : "";
-    const text = liveText || savedSelectionRef.current?.text || "";
-    if (!text) return;
-
-    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
-    const nextBookmark: BookmarkEntry = {
-      id: `bookmark-${bookId}-${currentChapter}-${Date.now()}`,
-      bookId,
-      chapterIndex: currentChapter,
-      chapterTitle,
-      previewText: text.length > 160 ? `${text.slice(0, 157)}...` : text,
-      scrollOffset: scrollOffsetRef.current,
-      createdAt: new Date().toISOString(),
-    };
-
-    persistBookmarks([...bookmarks, nextBookmark]);
-    window.getSelection()?.removeAllRanges();
-    savedSelectionRef.current = null;
-    setSelectionToolbar(null);
-  };
-
-
-  const captureSelection = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || !selection.toString().trim()) {
-      setSelectionToolbar((prev) => (prev ? null : prev));
-      savedSelectionRef.current = null;
-      return;
-    }
-
-    const text = selection.toString().trim();
-    const article = contentRef.current;
-    const anchor = selection.anchorNode;
-    const focus = selection.focusNode;
-    if (!article || !anchor || !focus) {
-      setSelectionToolbar((prev) => (prev ? null : prev));
-      return;
-    }
-    // Only show toolbar for selections inside the book content area
-    if (!article.contains(anchor) && !article.contains(focus)) {
-      setSelectionToolbar((prev) => (prev ? null : prev));
-      return;
-    }
-
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    if (!rect.width && !rect.height) {
-      setSelectionToolbar((prev) => (prev ? null : prev));
-      return;
-    }
-
-    // x = center of selection, y = selection top (viewport coords + scroll) → toolbar positions itself above
-    const x = Math.round(rect.left + rect.width / 2);
-    const y = Math.round(rect.top + window.scrollY);
-    
-    savedSelectionRef.current = { text, x, y };
-
-    setSelectionToolbar((prev) => {
-      // Prevent unnecessary state updates to avoid React re-render jitter
-      if (prev && prev.x === x && prev.y === y) return prev;
-      return { x, y };
-    });
-  }, []);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const debouncedCapture = (delay: number) => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(captureSelection, delay);
-    };
-
-    const handleMouseUp = () => debouncedCapture(10);
-    const handleTouchEnd = () => debouncedCapture(200);
-    
-    // Mobile handles often trigger selectionchange without touchend when dragging native cursors
-    const handleSelectionChange = () => debouncedCapture(300);
-
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Element;
-      if (target.closest("[data-highlight-toolbar]")) return;
-      setSelectionToolbar(null);
-      savedSelectionRef.current = null;
-    };
-
-    document.addEventListener("selectionchange", handleSelectionChange);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.addEventListener("touchend", handleTouchEnd, { passive: true });
-    document.addEventListener("mousedown", handleMouseDown);
-
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      document.removeEventListener("selectionchange", handleSelectionChange);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.removeEventListener("touchend", handleTouchEnd);
-      document.removeEventListener("mousedown", handleMouseDown);
-    };
-  }, [captureSelection]);
-
-
-  const jumpToHighlight = (chapterIndex: number, scrollOffset: number) => {
-    setHighlightsOpen(false);
-    setCurrentChapter(chapterIndex);
-    pendingScrollRestore.current = scrollOffset;
-    scrollOffsetRef.current = scrollOffset;
-    setChromeVisible(true);
-    setTimeout(() => {
-      window.scrollTo({ top: scrollOffset, behavior: "auto" });
-    }, 50);
-  };
 
   // TOC
   useEffect(() => {
@@ -1121,7 +1078,7 @@ export default function BookReaderClient({
   }, []);
 
   const themeVars = THEME_STYLES[readerTheme];
-  const chromeOpen = chromeVisible || settingsOpen || tocOpen || bookmarksOpen || highlightsOpen || paywallModalOpen;
+  const chromeOpen = chromeVisible || settingsOpen || tocOpen || annotationsOpen || paywallModalOpen;
 
   if (!mounted) {
     return <div style={{ background: "#FFFFFF", minHeight: "100vh" }} />;
@@ -1303,77 +1260,49 @@ export default function BookReaderClient({
             )}
           </button>
 
-          {/* Bookmark button */}
+          {/* Bookmark current spot */}
           <button
             type="button"
             onClick={toggleBookmark}
             style={{
               border: "1px solid var(--reader-border)",
-              background: "var(--reader-surface)",
-              color: isBookmarked ? "#f59e0b" : "var(--reader-muted)",
+              background: isBookmarked ? "rgba(201, 150, 46, 0.16)" : "var(--reader-surface)",
+              color: isBookmarked ? "#C9962E" : "var(--reader-muted)",
             }}
             className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            title={isBookmarked ? "Waa lagu calaamadiyay" : "Calaamadee"}
+            title={isBookmarked ? "Ka saar calaamadda" : "Calaamadee goobtan"}
             aria-label="Calaamad"
           >
             <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isBookmarked ? "fill-current" : ""}`} />
           </button>
 
-          {/* Highlights button */}
-          <button
-            type="button"
-            onClick={() => createHighlightFromSelection("gold")}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: highlightsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: highlightsOpen ? "#fff" : "var(--reader-heading)",
-            }}
-            className="h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
-            aria-label="Xusha"
-            title="Xusha xulashada"
-          >
-            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-current text-[8px] font-black">H</span>
-            <span className="hidden md:inline">Xusha</span>
-          </button>
-
-          {/* Bookmarks panel button */}
+          {/* Annotations (bookmarks + highlights list) */}
           <button
             type="button"
             onClick={() => {
               forceShowChrome();
-              setBookmarksOpen(true);
+              setAnnotationsTab(highlights.length > bookmarks.length ? "highlights" : "bookmarks");
+              setAnnotationsOpen(true);
             }}
             style={{
               border: "1px solid var(--reader-border)",
-              background: bookmarksOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: bookmarksOpen ? "#fff" : "var(--reader-heading)",
+              background: annotationsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
+              color: annotationsOpen ? "#fff" : "var(--reader-heading)",
             }}
-            className="h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
-            aria-label="Calaamadaha"
-            title="Calaamadaha"
+            className="relative h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
+            aria-label="Xusuus-qorkaaga"
+            title="Calaamadaha & xushayaasha"
           >
-            <Bookmark className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden md:inline">Calaamadaha</span>
-          </button>
-
-          {/* Highlights panel button */}
-          <button
-            type="button"
-            onClick={() => {
-              forceShowChrome();
-              setHighlightsOpen(true);
-            }}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: highlightsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: highlightsOpen ? "#fff" : "var(--reader-heading)",
-            }}
-            className="h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
-            aria-label="Xushayaasha"
-            title="Xushayaasha"
-          >
-            <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-current text-[8px] font-black">H</span>
-            <span className="hidden md:inline">Xushayaal</span>
+            <Highlighter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden md:inline">Xusuus</span>
+            {(bookmarks.length + highlights.length) > 0 && (
+              <span
+                className="absolute -right-1 -top-1 min-w-[16px] rounded-full px-1 text-[9px] font-black leading-[16px] text-center"
+                style={{ background: "#C9962E", color: "#1A1208" }}
+              >
+                {bookmarks.length + highlights.length}
+              </span>
+            )}
           </button>
 
           {/* Chapters (TOC) button */}
@@ -1479,30 +1408,24 @@ export default function BookReaderClient({
         onHighlightedHtml={setSearchHighlightedHtml}
       />
 
-      <BookmarksPanel
-        open={bookmarksOpen}
+      <AnnotationsSheet
+        open={annotationsOpen}
+        tab={annotationsTab}
+        onTabChange={setAnnotationsTab}
         bookmarks={bookmarks}
-        onClose={() => setBookmarksOpen(false)}
-        onJump={jumpToBookmark}
-      />
-      <HighlightsPanel
-        open={highlightsOpen}
         highlights={highlights}
-        onClose={() => setHighlightsOpen(false)}
-        onJump={jumpToHighlight}
+        onClose={() => setAnnotationsOpen(false)}
+        onJumpBookmark={jumpToBookmark}
+        onJumpHighlight={jumpToHighlight}
+        onDeleteBookmark={removeBookmark}
+        onDeleteHighlight={removeHighlight}
       />
-      <div data-highlight-toolbar="">
-        <HighlightToolbar
-          open={Boolean(selectionToolbar)}
-          x={selectionToolbar?.x ?? 0}
-          y={selectionToolbar?.y ?? 0}
-          onHighlight={(color) => createHighlightFromSelection(color as HighlightColor)}
-          onBookmark={createBookmarkFromSelection}
-          onShare={() => {
-            setSelectionToolbar(null);
-          }}
-        />
-      </div>
+      <HighlightToolbar
+        contentRef={contentRef}
+        enabled={!annotationsOpen && !settingsOpen && !tocOpen && !searchOpen}
+        onHighlight={createHighlight}
+        onBookmark={createBookmarkFromText}
+      />
 
       {/* Progress */}
       {chaptersCount > 0 && (
@@ -1566,7 +1489,7 @@ export default function BookReaderClient({
       <main
         className="flex-grow max-w-[720px] mx-auto px-4 sm:px-8 py-6 sm:py-12 w-full"
         onClick={() => {
-          if (!settingsOpen && !tocOpen && !bookmarksOpen && !highlightsOpen) setChromeVisible((v) => !v);
+          if (!settingsOpen && !tocOpen && !annotationsOpen) setChromeVisible((v) => !v);
         }}
         onTouchStart={(e) => {
           touchStartX.current = e.touches[0].clientX;
@@ -1668,14 +1591,10 @@ export default function BookReaderClient({
             className={FONT_CLASSES[fontFamily]}
             style={{ fontSize: `${fontSize}px` }}
             onClick={(e) => e.stopPropagation()}
-            onMouseUp={captureSelection}
-            onTouchEnd={() => {
-              window.setTimeout(() => captureSelection(), 200);
-            }}
           >
             <div
               className="reader-prose"
-              dangerouslySetInnerHTML={{ __html: searchHighlightedHtml || currentHtml }}
+              dangerouslySetInnerHTML={{ __html: searchHighlightedHtml || annotatedHtml }}
             />
             <div ref={endSentinelRef} className="h-4 w-full" aria-hidden />
           </article>
@@ -2060,6 +1979,17 @@ export default function BookReaderClient({
         }
         .reader-prose strong { color: var(--reader-heading); font-weight: 700; }
         .reader-prose img { max-width: 100%; height: auto; border-radius: 12px; }
+        .reader-prose mark.ib-hl {
+          border-radius: 3px;
+          padding: 0.05em 0.12em;
+          color: inherit;
+          -webkit-box-decoration-break: clone;
+          box-decoration-break: clone;
+        }
+        .reader-prose mark.ib-hl--gold { background: rgba(201, 150, 46, 0.38); }
+        .reader-prose mark.ib-hl--navy { background: rgba(29, 58, 95, 0.28); }
+        .reader-prose mark.ib-hl--oxblood { background: rgba(112, 25, 61, 0.28); }
+        .reader-prose mark.ib-hl--green { background: rgba(46, 125, 91, 0.28); }
       `}</style>
     </div>
   );

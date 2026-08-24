@@ -1,123 +1,274 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Bookmark } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Bookmark, Share2 } from "lucide-react";
+import type { HighlightColor } from "@/components/reader/HighlightsPanel";
 
-const PALETTE = [
-  { key: "gold",    label: "Dahab",   color: "#C9962E", ring: "#F5E0A0" },
-  { key: "navy",    label: "Buluug",  color: "#1D3A5F", ring: "#A8C0E0" },
-  { key: "oxblood", label: "Guduud",  color: "#70193D", ring: "#E0A0B8" },
-  { key: "green",   label: "Cagaar",  color: "#2E7D5B", ring: "#A0DEC0" },
-] as const;
+const PALETTE: { key: HighlightColor; label: string; color: string }[] = [
+  { key: "gold", label: "Dahab", color: "#C9962E" },
+  { key: "navy", label: "Buluug", color: "#1D3A5F" },
+  { key: "oxblood", label: "Guduud", color: "#70193D" },
+  { key: "green", label: "Cagaar", color: "#2E7D5B" },
+];
 
+const TOOLBAR_W = 248;
+const TOOLBAR_H = 52;
+
+type SelectionState = {
+  text: string;
+  left: number;
+  top: number;
+};
+
+/**
+ * Self-contained selection toolbar.
+ * Keeps its own open/position state so selecting text does NOT re-render
+ * BookReaderClient (which would remount chapter HTML and kill the selection).
+ */
 export default function HighlightToolbar({
-  open,
-  x,
-  y,
+  contentRef,
+  enabled = true,
   onHighlight,
   onBookmark,
-  onShare,
 }: {
-  open: boolean;
-  x: number;
-  y: number;
-  onHighlight: (color: string) => void;
-  onBookmark: () => void;
-  onShare: () => void;
+  contentRef: React.RefObject<HTMLElement | null>;
+  enabled?: boolean;
+  onHighlight: (text: string, color: HighlightColor) => void;
+  onBookmark: (text: string) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const [sel, setSel] = useState<SelectionState | null>(null);
+  const selRef = useRef<SelectionState | null>(null);
+  const pointerDownRef = useRef(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Re-position every time open/x/y change, after paint, to avoid layout flash
+  const clearTimers = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (showTimer.current) clearTimeout(showTimer.current);
+    hideTimer.current = null;
+    showTimer.current = null;
+  };
+
+  const close = useCallback(() => {
+    selRef.current = null;
+    setSel(null);
+  }, []);
+
+  const readSelection = useCallback((): SelectionState | null => {
+    const article = contentRef.current;
+    const selection = window.getSelection();
+    if (!article || !selection || selection.rangeCount === 0) return null;
+
+    const text = selection.toString().replace(/\s+/g, " ").trim();
+    if (text.length < 2) return null;
+
+    const anchor = selection.anchorNode;
+    const focus = selection.focusNode;
+    if (!anchor || !focus) return null;
+    if (!article.contains(anchor) || !article.contains(focus)) return null;
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (rect.width < 1 && rect.height < 1) return null;
+
+    // Fixed positioning → viewport coords only (never add scrollY)
+    const centerX = rect.left + rect.width / 2;
+    const left = Math.max(8, Math.min(centerX - TOOLBAR_W / 2, window.innerWidth - TOOLBAR_W - 8));
+    const above = rect.top - TOOLBAR_H - 10;
+    const top = above >= 56 ? above : Math.min(rect.bottom + 10, window.innerHeight - TOOLBAR_H - 8);
+
+    return { text, left: Math.round(left), top: Math.round(top) };
+  }, [contentRef]);
+
+  const tryShow = useCallback(
+    (delay = 0) => {
+      if (!enabled) return;
+      if (showTimer.current) clearTimeout(showTimer.current);
+      showTimer.current = setTimeout(() => {
+        if (pointerDownRef.current) return;
+        const next = readSelection();
+        if (!next) {
+          // Keep last selection briefly so toolbar clicks still work
+          return;
+        }
+        const prev = selRef.current;
+        if (prev && prev.text === next.text && prev.left === next.left && prev.top === next.top) {
+          return;
+        }
+        selRef.current = next;
+        setSel(next);
+      }, delay);
+    },
+    [enabled, readSelection],
+  );
+
   useEffect(() => {
-    if (!open || !ref.current) return;
-    const el = ref.current;
-    const W = window.innerWidth;
-    const elRect = el.getBoundingClientRect();
-    const w = elRect.width || 220;
-    const h = elRect.height || 60;
+    if (!enabled) {
+      close();
+      return;
+    }
 
-    // Clamp horizontal so toolbar never exits screen
-    const left = Math.max(8, Math.min(x - w / 2, W - w - 8));
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (target?.closest?.("[data-highlight-toolbar]")) return;
+      pointerDownRef.current = true;
+      // Don't close immediately — user may be adjusting selection handles
+    };
 
-    // Try above selection; if not enough room, show below
-    const ARROW = 10;
-    const above = y - h - ARROW;
-    const top = above < 58 ? y + ARROW : above;
+    const onPointerUp = () => {
+      pointerDownRef.current = false;
+      // Mobile needs a beat for native selection handles to settle
+      const touchLike = window.matchMedia("(pointer: coarse)").matches;
+      tryShow(touchLike ? 280 : 20);
+    };
 
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
-    el.style.visibility = "visible";
-  }, [open, x, y]);
+    const onSelectionChange = () => {
+      // Only reposition once we already have a toolbar open (mobile handle drag)
+      if (!selRef.current || pointerDownRef.current) return;
+      tryShow(120);
+    };
 
-  if (!open) return null;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        window.getSelection()?.removeAllRanges();
+        close();
+      }
+    };
+
+    // Click outside content + toolbar clears
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target) return;
+      if (target.closest("[data-highlight-toolbar]")) return;
+      if (contentRef.current?.contains(target)) return;
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      hideTimer.current = setTimeout(() => {
+        if (!window.getSelection()?.toString().trim()) close();
+      }, 0);
+    };
+
+    document.addEventListener("pointerdown", onPointerDown, true);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("selectionchange", onSelectionChange);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("click", onDocClick);
+
+    return () => {
+      clearTimers();
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("selectionchange", onSelectionChange);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("click", onDocClick);
+    };
+  }, [close, contentRef, enabled, tryShow]);
+
+  useEffect(() => {
+    if (!enabled) close();
+  }, [close, enabled]);
+
+  const takeText = () => selRef.current?.text || readSelection()?.text || "";
+
+  const handleHighlight = (color: HighlightColor) => {
+    const text = takeText();
+    if (!text) return;
+    onHighlight(text, color);
+    window.getSelection()?.removeAllRanges();
+    close();
+  };
+
+  const handleBookmark = () => {
+    const text = takeText();
+    if (!text) return;
+    onBookmark(text);
+    window.getSelection()?.removeAllRanges();
+    close();
+  };
+
+  const handleShare = async () => {
+    const text = takeText();
+    if (!text) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ text });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {
+      // user cancelled share — ignore
+    }
+  };
+
+  if (!sel) return null;
 
   return (
     <div
-      ref={ref}
-      // Start invisible — positioning useEffect makes it visible after measuring
-      style={{ visibility: "hidden", position: "fixed", zIndex: 9999, top: 0, left: 0 }}
-      // Prevent mousedown from clearing the text selection on desktop
-      onMouseDown={(e) => {
+      data-highlight-toolbar=""
+      role="toolbar"
+      aria-label="Xusha qoraalka"
+      style={{
+        position: "fixed",
+        left: sel.left,
+        top: sel.top,
+        zIndex: 9999,
+        width: TOOLBAR_W,
+      }}
+      onPointerDown={(e) => {
+        // Keep the browser selection alive when tapping toolbar buttons
         e.preventDefault();
         e.stopPropagation();
       }}
-      // Stop touch events from bubbling up and triggering the document's captureSelection
-      onTouchStart={(e) => e.stopPropagation()}
-      onTouchEnd={(e) => e.stopPropagation()}
-      onMouseUp={(e) => e.stopPropagation()}
     >
       <div
-        className="flex items-center gap-1.5 rounded-2xl border px-2.5 py-2"
+        className="flex items-center gap-1 rounded-2xl border px-2 py-1.5"
         style={{
           background: "var(--reader-bg, #fff)",
           borderColor: "var(--reader-border, #e5e7eb)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.10)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
+          boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
         }}
       >
-        {/* Colour swatches */}
         {PALETTE.map((opt) => (
           <button
             key={opt.key}
             type="button"
-            onClick={() => onHighlight(opt.key)}
+            onClick={() => handleHighlight(opt.key)}
             title={opt.label}
             aria-label={`Xushi — ${opt.label}`}
-            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-150 hover:scale-110 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2"
-            style={{
-              background: opt.color,
-              outlineColor: opt.color,
-            }}
-          >
-            {/* Subtle inner gloss */}
-            <span
-              className="pointer-events-none absolute inset-[3px] rounded-full opacity-25"
-              style={{ background: opt.ring }}
-            />
-          </button>
+            className="h-9 w-9 shrink-0 rounded-full transition-transform active:scale-95"
+            style={{ background: opt.color }}
+          />
         ))}
 
-        {/* Thin divider */}
-        <div
-          className="h-7 w-px shrink-0"
-          style={{ background: "var(--reader-border, #e5e7eb)" }}
-        />
+        <div className="mx-0.5 h-7 w-px shrink-0" style={{ background: "var(--reader-border)" }} />
 
-        {/* Bookmark button */}
         <button
           type="button"
-          onClick={onBookmark}
+          onClick={handleBookmark}
           title="Calaamadi"
           aria-label="Calaamadi goobtan"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform duration-150 hover:scale-110 active:scale-95"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
           style={{
             background: "var(--reader-surface, #f9f6f1)",
             color: "var(--reader-heading, #201B16)",
-            border: "1px solid var(--reader-border, #e5e7eb)",
+            borderColor: "var(--reader-border, #e5e7eb)",
           }}
         >
           <Bookmark className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => void handleShare()}
+          title="Wadaag"
+          aria-label="Wadaag qoraalka"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+          style={{
+            background: "var(--reader-surface, #f9f6f1)",
+            color: "var(--reader-heading, #201B16)",
+            borderColor: "var(--reader-border, #e5e7eb)",
+          }}
+        >
+          <Share2 className="h-4 w-4" />
         </button>
       </div>
     </div>

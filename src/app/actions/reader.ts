@@ -330,3 +330,36 @@ export async function loadHighlightsAction(bookId: number) {
     createdAt: String(row.created_at ?? new Date().toISOString()),
   }));
 }
+
+export async function deleteBookmarkAction(id: string) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return { ok: false };
+
+  // Local-only ids are not numeric DB rows
+  if (!/^\d+$/.test(id)) return { ok: true };
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const { error } = await supabase
+    .from("bookmarks")
+    .delete()
+    .eq("id", Number(id))
+    .or(buildUserOrFilter(authUserId, legacyUserId));
+
+  return { ok: !error };
+}
+
+export async function deleteHighlightAction(id: string) {
+  const userIds = await getCurrentUserIds();
+  if (!userIds) return { ok: false };
+
+  if (!/^\d+$/.test(id)) return { ok: true };
+
+  const { supabase, authUserId, legacyUserId } = userIds;
+  const { error } = await supabase
+    .from("highlights")
+    .delete()
+    .eq("id", Number(id))
+    .or(buildUserOrFilter(authUserId, legacyUserId));
+
+  return { ok: !error };
+}
