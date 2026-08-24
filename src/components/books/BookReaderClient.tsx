@@ -681,7 +681,7 @@ export default function BookReaderClient({
     if (typeof window === "undefined") return;
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || !selection.toString().trim()) {
-      setSelectionToolbar(null);
+      setSelectionToolbar((prev) => (prev ? null : prev));
       savedSelectionRef.current = null;
       return;
     }
@@ -691,27 +691,33 @@ export default function BookReaderClient({
     const anchor = selection.anchorNode;
     const focus = selection.focusNode;
     if (!article || !anchor || !focus) {
-      setSelectionToolbar(null);
+      setSelectionToolbar((prev) => (prev ? null : prev));
       return;
     }
     // Only show toolbar for selections inside the book content area
     if (!article.contains(anchor) && !article.contains(focus)) {
-      setSelectionToolbar(null);
+      setSelectionToolbar((prev) => (prev ? null : prev));
       return;
     }
 
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     if (!rect.width && !rect.height) {
-      setSelectionToolbar(null);
+      setSelectionToolbar((prev) => (prev ? null : prev));
       return;
     }
 
     // x = center of selection, y = selection top (viewport coords + scroll) → toolbar positions itself above
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + window.scrollY;   // top of selection in doc coords
+    const x = Math.round(rect.left + rect.width / 2);
+    const y = Math.round(rect.top + window.scrollY);
+    
     savedSelectionRef.current = { text, x, y };
-    setSelectionToolbar({ x, y });
+
+    setSelectionToolbar((prev) => {
+      // Prevent unnecessary state updates to avoid React re-render jitter
+      if (prev && prev.x === x && prev.y === y) return prev;
+      return { x, y };
+    });
   }, []);
 
   useEffect(() => {
@@ -719,33 +725,32 @@ export default function BookReaderClient({
 
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const handleMouseUp = () => {
-      // Small delay so the browser finalises the selection before we read it
+    const debouncedCapture = (delay: number) => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(captureSelection, 10);
+      debounceTimer = setTimeout(captureSelection, delay);
     };
 
-    const handleTouchEnd = () => {
-      // Mobile needs a longer delay as the system selection handles appear
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(captureSelection, 200);
-    };
+    const handleMouseUp = () => debouncedCapture(10);
+    const handleTouchEnd = () => debouncedCapture(200);
+    
+    // Mobile handles often trigger selectionchange without touchend when dragging native cursors
+    const handleSelectionChange = () => debouncedCapture(300);
 
-    // Dismiss toolbar when user clicks elsewhere (not on the toolbar itself)
     const handleMouseDown = (e: MouseEvent) => {
       const target = e.target as Element;
-      // If the click is inside the toolbar, do nothing (toolbar's own onMouseDown prevents selection loss)
       if (target.closest("[data-highlight-toolbar]")) return;
       setSelectionToolbar(null);
       savedSelectionRef.current = null;
     };
 
+    document.addEventListener("selectionchange", handleSelectionChange);
     document.addEventListener("mouseup", handleMouseUp);
     document.addEventListener("touchend", handleTouchEnd, { passive: true });
     document.addEventListener("mousedown", handleMouseDown);
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      document.removeEventListener("selectionchange", handleSelectionChange);
       document.removeEventListener("mouseup", handleMouseUp);
       document.removeEventListener("touchend", handleTouchEnd);
       document.removeEventListener("mousedown", handleMouseDown);

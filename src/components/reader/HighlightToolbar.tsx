@@ -56,9 +56,15 @@ export default function HighlightToolbar({
       ref={ref}
       // Start invisible — positioning useEffect makes it visible after measuring
       style={{ visibility: "hidden", position: "fixed", zIndex: 9999, top: 0, left: 0 }}
-      // CRITICAL: prevent mousedown / pointerdown from clearing the text selection
-      onMouseDown={(e) => e.preventDefault()}
-      onPointerDown={(e) => e.preventDefault()}
+      // Prevent mousedown from clearing the text selection on desktop
+      onMouseDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      // Stop touch events from bubbling up and triggering the document's captureSelection
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
     >
       <div
         className="flex items-center gap-1.5 rounded-2xl border px-2.5 py-2"
