@@ -94,21 +94,64 @@ export function stripPresentationAttrs(html: string): string {
 
 /**
  * Parse Microsoft Word DOCX buffer into semantic HTML chapters.
- * mammoth produces reliable <h1>/<h2> from Word heading styles — we use those
- * as chapter boundaries and strip all presentation attributes afterward.
+ * Uses comprehensive style mapping and chapter keyword detection so that
+ * Word Headings (Heading 1..6, Title, Subtitle) and Somali chapter titles
+ * (Cutubka, Baabka, Chapter, Qeybta, Hordhac) are reliably segmented into chapters.
  */
 async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
-  const result = await mammoth.convertToHtml({ buffer });
-  // Strip any class=/style= attrs mammoth may have carried over from Word themes
-  const rawHtml = stripPresentationAttrs(result.value || "");
+  const mammothOptions = {
+    styleMap: [
+      "p[style-name^='Heading'] => h1:fresh",
+      "p[style-name^='heading'] => h1:fresh",
+      "p[style-name^='Title'] => h1:fresh",
+      "p[style-name^='title'] => h1:fresh",
+      "p[style-name^='Subtitle'] => h2:fresh",
+      "p[style-name^='subtitle'] => h2:fresh",
+      "p[style-name^='Header'] => h1:fresh",
+      "p[style-name^='header'] => h1:fresh",
+      "p[style-name^='Titre'] => h1:fresh",
+      "p[style-name^='Encabezado'] => h1:fresh",
+      "p[style-name^='Überschrift'] => h1:fresh",
+    ],
+  };
+
+  const result = await mammoth.convertToHtml({ buffer }, mammothOptions);
+  // Strip any class=/style=/align= attrs mammoth may have carried over from Word
+  let rawHtml = stripPresentationAttrs(result.value || "");
 
   if (!rawHtml.trim()) {
     throw new Error("Wax nuxur ah lagama helin faylka Word-ka (DOCX).");
   }
 
-  // Split HTML by <h1> or <h2> headings if present
-  const headingRegex = /(?=<h[12][^>]*>)/i;
-  const sections = rawHtml.split(headingRegex).filter((s) => s.trim().length > 30);
+  // Somali and English chapter keywords
+  const CHAPTER_KEYWORDS = "(?:baabka|cutubka|chapter|qeybta|qaybta|hordhac|horudhac|gunaanad|gebogebo|gaba-gabo|xogta)";
+
+  // Promote <p> tags with <strong>/<b> chapter keywords to <h2>
+  // e.g. <p><strong>Cutubka 1: Bilowga</strong></p> -> <h2>Cutubka 1: Bilowga</h2>
+  const boldChapterPattern = new RegExp(
+    `<p>(?:<strong>|<b>)\\s*(${CHAPTER_KEYWORDS}\\b[^<]{1,120})\\s*(?:<\\/strong>|<\\/b>)<\\/p>`,
+    "gi"
+  );
+  rawHtml = rawHtml.replace(boldChapterPattern, "<h2>$1</h2>");
+
+  // Promote standalone <p> tags starting with chapter keyword + number/name
+  // e.g. <p>Cutubka 1: Bilowga</p> -> <h2>Cutubka 1: Bilowga</h2>
+  const pChapterPattern = new RegExp(
+    `<p>\\s*(${CHAPTER_KEYWORDS}\\s+(?:\\d+|[a-zà-öø-ÿ]+)[^<]{0,100})\\s*<\\/p>`,
+    "gi"
+  );
+  rawHtml = rawHtml.replace(pChapterPattern, "<h2>$1</h2>");
+
+  // Promote standalone <p> tags with single keyword (e.g. <p>Hordhac</p>, <p>HORUDHAC</p>)
+  const pSingleKeywordPattern = new RegExp(
+    `<p>\\s*(${CHAPTER_KEYWORDS})\\s*<\\/p>`,
+    "gi"
+  );
+  rawHtml = rawHtml.replace(pSingleKeywordPattern, "<h2>$1</h2>");
+
+  // Split HTML by any heading tag <h1> through <h6>
+  const headingRegex = /(?=<h[1-6][^>]*>)/i;
+  const sections = rawHtml.split(headingRegex).filter((s) => s.trim().length > 20);
 
   const chapters: { fileName: string; content: string }[] = [];
   const toc: { title: string; file: string }[] = [];
@@ -117,8 +160,12 @@ async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
     sections.forEach((sec, idx) => {
       const numStr = String(idx + 1).padStart(3, "0");
       const fileName = `ch_${numStr}.html`;
-      const titleMatch = sec.match(/<h[12][^>]*>(.*?)<\/h[12]>/i);
-      const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : `Cutubka ${idx + 1}`;
+      const titleMatch = sec.match(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/i);
+      let title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, "").trim() : "";
+
+      if (!title) {
+        title = idx === 0 ? "Hordhac" : `Cutubka ${idx + 1}`;
+      }
 
       // Bare semantic wrapper — no Tailwind classes; .reader-prose handles spacing/color
       const content = `<div class="chapter">\n${sec}\n</div>`;
@@ -126,7 +173,7 @@ async function parseDocx(buffer: Buffer): Promise<IngestionResult> {
       toc.push({ title, file: fileName });
     });
   } else {
-    // No headings — split into ~10 equal chunks
+    // No headings detected — split into ~10 equal chunks
     const pRegex = /(?=<p[^>]*>)/i;
     const paragraphs = rawHtml.split(pRegex).filter((p) => p.trim().length > 0);
     const chunkSize = Math.max(1, Math.ceil(paragraphs.length / 10));
