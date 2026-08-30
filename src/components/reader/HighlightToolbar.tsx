@@ -42,17 +42,18 @@ export default function HighlightToolbar({
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     if (showTimer.current) clearTimeout(showTimer.current);
     hideTimer.current = null;
     showTimer.current = null;
-  };
+  }, []);
 
   const close = useCallback(() => {
+    clearTimers();
     selRef.current = null;
     setSel(null);
-  }, []);
+  }, [clearTimers]);
 
   const readSelection = useCallback((): SelectionState | null => {
     const article = contentRef.current;
@@ -88,7 +89,7 @@ export default function HighlightToolbar({
         if (pointerDownRef.current) return;
         const next = readSelection();
         if (!next) {
-          // Keep last selection briefly so toolbar clicks still work
+          close(); // Selection cleared, so close the toolbar
           return;
         }
         const prev = selRef.current;
@@ -99,7 +100,7 @@ export default function HighlightToolbar({
         setSel(next);
       }, delay);
     },
-    [enabled, readSelection],
+    [enabled, readSelection, close],
   );
 
   useEffect(() => {
@@ -112,7 +113,6 @@ export default function HighlightToolbar({
       const target = e.target as Element | null;
       if (target?.closest?.("[data-highlight-toolbar]")) return;
       pointerDownRef.current = true;
-      // Don't close immediately — user may be adjusting selection handles
     };
 
     const onPointerUp = () => {
@@ -123,8 +123,7 @@ export default function HighlightToolbar({
     };
 
     const onSelectionChange = () => {
-      // Only reposition once we already have a toolbar open (mobile handle drag)
-      if (!selRef.current || pointerDownRef.current) return;
+      if (pointerDownRef.current) return;
       tryShow(120);
     };
 
@@ -135,23 +134,10 @@ export default function HighlightToolbar({
       }
     };
 
-    // Click outside content + toolbar clears
-    const onDocClick = (e: MouseEvent) => {
-      const target = e.target as Element | null;
-      if (!target) return;
-      if (target.closest("[data-highlight-toolbar]")) return;
-      if (contentRef.current?.contains(target)) return;
-      if (hideTimer.current) clearTimeout(hideTimer.current);
-      hideTimer.current = setTimeout(() => {
-        if (!window.getSelection()?.toString().trim()) close();
-      }, 0);
-    };
-
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("pointerup", onPointerUp);
     document.addEventListener("selectionchange", onSelectionChange);
     document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("click", onDocClick);
 
     return () => {
       clearTimers();
@@ -159,9 +145,8 @@ export default function HighlightToolbar({
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("click", onDocClick);
     };
-  }, [close, contentRef, enabled, tryShow]);
+  }, [close, enabled, tryShow, clearTimers]);
 
   useEffect(() => {
     if (!enabled) close();
