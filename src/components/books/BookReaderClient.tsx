@@ -40,21 +40,47 @@ import {
   Highlighter,
 } from "lucide-react";
 
+import dynamic from "next/dynamic";
 import ReaderBackButton from "@/components/reader/ReaderBackButton";
-import ReaderSearchBar from "@/components/reader/ReaderSearchBar";
-import ReaderSettingsSheet, {
-  type ReaderTheme,
-  type FontFamily,
-  type LineSpacing,
+import type {
+  ReaderTheme,
+  FontFamily,
+  LineSpacing,
 } from "@/components/reader/ReaderSettingsSheet";
-import { type BookmarkEntry } from "@/components/reader/BookmarksPanel";
-import { type HighlightEntry, type HighlightColor } from "@/components/reader/HighlightsPanel";
-import AnnotationsSheet, { type AnnotationsTab } from "@/components/reader/AnnotationsSheet";
-import HighlightToolbar from "@/components/reader/HighlightToolbar";
+import type { BookmarkEntry } from "@/components/reader/BookmarksPanel";
+import type { HighlightEntry, HighlightColor } from "@/components/reader/HighlightsPanel";
+import type { AnnotationsTab } from "@/components/reader/AnnotationsSheet";
 import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
 import { BookCard, type BookCardData } from "@/components/books/BookCard";
 
+const ReaderSearchBar = dynamic(
+  () => import("@/components/reader/ReaderSearchBar"),
+  { ssr: false }
+);
+const ReaderSettingsSheet = dynamic(
+  () => import("@/components/reader/ReaderSettingsSheet"),
+  { ssr: false }
+);
+const AnnotationsSheet = dynamic(
+  () => import("@/components/reader/AnnotationsSheet"),
+  { ssr: false }
+);
+const HighlightToolbar = dynamic(
+  () => import("@/components/reader/HighlightToolbar"),
+  { ssr: false }
+);
+
 type TocItem = { title: string; file: string };
+
+const SUPABASE_URL = (() => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) {
+    throw new Error(
+      "[BookReaderClient] NEXT_PUBLIC_SUPABASE_URL is not set. Check your environment variables."
+    );
+  }
+  return url;
+})();
 
 const THEME_STYLES: Record<ReaderTheme, React.CSSProperties> = {
   light: {
@@ -102,6 +128,11 @@ function ensureDyslexiaFont() {
   style.id = DYSLEXIA_STYLE_ID;
   style.textContent = `.font-dyslexia { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important; letter-spacing: 0.1em !important; word-spacing: 0.25em !important; line-height: 2 !important; }`;
   document.head.appendChild(style);
+}
+
+function ensureLazyImages(html: string): string {
+  if (!html) return "";
+  return html.replace(/<img(?![^>]*\bloading\s*=)/gi, '<img loading="lazy"');
 }
 
 const LINE_HEIGHT: Record<LineSpacing, number> = {
@@ -229,43 +260,12 @@ export default function BookReaderClient({
   isPaid?: boolean;
 }) {
   const storageId = itemType === "summary" ? `summary_${bookId}` : bookId;
-  const [fontSize, setFontSize] = useState<number>(() => {
-    try {
-      const savedFontSize = localStorage.getItem(LS_FONT_SIZE);
-      const n = Number(savedFontSize);
-      return savedFontSize && n >= 14 && n <= 30 ? n : 18;
-    } catch {
-      return 18;
-    }
-  });
-  const [fontFamily, setFontFamily] = useState<FontFamily>(() => {
-    try {
-      const savedFontFamily = localStorage.getItem(LS_FONT_FAMILY) as FontFamily | null;
-      if (savedFontFamily && ["serif", "sans", "mono", "dyslexia"].includes(savedFontFamily)) {
-        if (savedFontFamily === "dyslexia") ensureDyslexiaFont();
-        return savedFontFamily;
-      }
-    } catch {}
-    return "serif";
-  });
-  const [readerTheme, setReaderTheme] = useState<ReaderTheme>(() => {
-    try {
-      const savedTheme = localStorage.getItem(LS_THEME) as ReaderTheme | null;
-      if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
-        return savedTheme;
-      }
-    } catch {}
-    return "light";
-  });
-  const [lineSpacing, setLineSpacing] = useState<LineSpacing>(() => {
-    try {
-      const savedSpacing = localStorage.getItem(LS_LINE_SPACING) as LineSpacing | null;
-      if (savedSpacing && ["normal", "relaxed"].includes(savedSpacing)) {
-        return savedSpacing;
-      }
-    } catch {}
-    return "normal";
-  });
+  // All reader-settings defaults are applied here and overridden after mount
+  // in the hydration useEffect — avoids SSR/client mismatch.
+  const [fontSize, setFontSize] = useState<number>(18);
+  const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
+  const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
+  const [lineSpacing, setLineSpacing] = useState<LineSpacing>("normal");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
   const { data: session } = useSession();
@@ -278,17 +278,8 @@ export default function BookReaderClient({
   const didHydrateRemoteAnnotations = useRef(false);
   const bookmarksRef = useRef<BookmarkEntry[]>([]);
   const highlightsRef = useRef<HighlightEntry[]>([]);
-  const [highlights, setHighlights] = useState<HighlightEntry[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const raw = localStorage.getItem(`ib_highlights_${bookId}`);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  // Initialise to empty; populated after mount in the hydration useEffect below.
+  const [highlights, setHighlights] = useState<HighlightEntry[]>([]);
   const [currentChapter, setCurrentChapter] = useState(initialChapter);
   const [tocOpen, setTocOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -299,23 +290,12 @@ export default function BookReaderClient({
   // Phase 2 state
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchHighlightedHtml, setSearchHighlightedHtml] = useState<string | null>(null);
-  const [streakDays] = useState(() => {
-    if (!isPreview) {
-      try {
-        recordReadingDay(bookId);
-      } catch {}
-    }
-    return !isPreview ? computeStreak(bookId) : 0;
-  });
+  // Initialise to 0/false; real values loaded in the hydration useEffect below.
+  const [streakDays, setStreakDays] = useState(0);
   const [showCelebration, setShowCelebration] = useState(false);
   const [offlineBanner, setOfflineBanner] = useState(false);
-  const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(() => {
-    try {
-      return sessionStorage.getItem(`ib_owner_nudge_${bookId}`) === "true";
-    } catch {
-      return false;
-    }
-  });
+  // Initialise to false; real value loaded from sessionStorage after mount.
+  const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(false);
   const [resumeBanner, setResumeBanner] = useState<{
     chapter: number;
     pct: number;
@@ -351,6 +331,89 @@ export default function BookReaderClient({
     } catch {}
   }, [bookId]);
 
+  // ── Post-mount hydration ───────────────────────────────────────────────────
+  // All state that reads localStorage/sessionStorage is initialised to a safe
+  // default above, then hydrated here after mount to avoid SSR/client mismatches.
+  useEffect(() => {
+    // Reader settings
+    try {
+      const savedFontSize = localStorage.getItem(LS_FONT_SIZE);
+      const n = Number(savedFontSize);
+      if (savedFontSize && n >= 14 && n <= 30) setFontSize(n);
+    } catch {}
+
+    try {
+      const savedFamily = localStorage.getItem(LS_FONT_FAMILY) as FontFamily | null;
+      if (savedFamily && ["serif", "sans", "mono", "dyslexia"].includes(savedFamily)) {
+        if (savedFamily === "dyslexia") ensureDyslexiaFont();
+        setFontFamily(savedFamily);
+      }
+    } catch {}
+
+    try {
+      const savedTheme = localStorage.getItem(LS_THEME) as ReaderTheme | null;
+      if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
+        setReaderTheme(savedTheme);
+      }
+    } catch {}
+
+    try {
+      const savedSpacing = localStorage.getItem(LS_LINE_SPACING) as LineSpacing | null;
+      if (savedSpacing && ["normal", "relaxed"].includes(savedSpacing)) {
+        setLineSpacing(savedSpacing);
+      }
+    } catch {}
+
+    // Bookmarks
+    const localBookmarks = readBookmarks();
+    if (localBookmarks.length > 0) setBookmarks(localBookmarks);
+
+    // Highlights
+    try {
+      const raw = localStorage.getItem(`ib_highlights_${bookId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) setHighlights(parsed);
+      }
+    } catch {}
+
+    // Owner nudge dismissed flag
+    try {
+      if (sessionStorage.getItem(`ib_owner_nudge_${bookId}`) === "true") {
+        setOwnerNudgeDismissed(true);
+      }
+    } catch {}
+
+    // Streak — record today and compute
+    if (!isPreview) {
+      try { recordReadingDay(bookId); } catch {}
+      setStreakDays(computeStreak(bookId));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — runs exactly once after first mount
+
+  // Network connectivity status for offline banner
+  useEffect(() => {
+    const handleOnline = () => setOfflineBanner(false);
+    const handleOffline = () => setOfflineBanner(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setOfflineBanner(true);
+    }
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  const prefersReducedMotion = useRef(false);
+  useEffect(() => {
+    prefersReducedMotion.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+  }, []);
+
   // Phase 3 state
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -372,10 +435,6 @@ export default function BookReaderClient({
   const saveScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endSentinelRef = useRef<HTMLDivElement | null>(null);
   const restoredOnce = useRef(false);
-
-  const SUPABASE_URL =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    "https://gdsmqhhzddjixifznecx.supabase.co";
 
   const changeTheme = (t: ReaderTheme) => {
     setReaderTheme(t);
@@ -491,7 +550,8 @@ export default function BookReaderClient({
     }
   };
 
-  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>(() => readBookmarks());
+  // Initialise to empty; populated after mount in the hydration useEffect below.
+  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
   bookmarksRef.current = bookmarks;
   highlightsRef.current = highlights;
 
@@ -856,13 +916,28 @@ export default function BookReaderClient({
       .catch(() => {});
   }, [initialLoadDone, bookId, toc, isPreview, showSavedToast]);
 
+  // Keep a stable ref to the latest saveProgress so the 60-s interval below
+  // does not need it in its dep array (which would reset the interval every
+  // chapter change and potentially skip saves on fast navigation).
+  const saveProgressRef = useRef(saveProgress);
+  useEffect(() => { saveProgressRef.current = saveProgress; }, [saveProgress]);
+
+  // Update chapterRef and fire an immediate save on every chapter change.
   useEffect(() => {
     if (!initialLoadDone || isPreview) return;
     chapterRef.current = currentChapter;
     saveProgress();
-    const interval = setInterval(saveProgress, 60000);
+  // saveProgress is stable across chapter changes (reads chapterRef internally)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChapter, initialLoadDone, isPreview]);
+
+  // Stable 60-second autosave interval — set up once, never torn down by
+  // chapter changes. Uses saveProgressRef so it always calls the latest version.
+  useEffect(() => {
+    if (!initialLoadDone || isPreview) return;
+    const interval = setInterval(() => saveProgressRef.current(), 60000);
     return () => clearInterval(interval);
-  }, [currentChapter, initialLoadDone, saveProgress, isPreview]);
+  }, [initialLoadDone, isPreview]);
 
   // Chapter fetch + prefetch next (with IndexedDB cache)
   useEffect(() => {
@@ -883,7 +958,7 @@ export default function BookReaderClient({
         // Try cache first
         const cached = await getChapterFromCache(cacheKey);
         if (cached && !cancelled) {
-          setCurrentHtml(cached);
+          setCurrentHtml(ensureLazyImages(cached));
           setLoading(false);
           // Background revalidate
           fetch(url).then(async (r) => {
@@ -897,16 +972,27 @@ export default function BookReaderClient({
           if (!res.ok) throw new Error("Failed to load chapter.");
           const html = await res.text();
           if (!cancelled) {
-            setCurrentHtml(html);
+            setCurrentHtml(ensureLazyImages(html));
             await setChapterInCache(cacheKey, html);
           }
         }
 
         const next = toc![currentChapter + 1];
         if (next && !(isPreview && currentChapter === previewLimit)) {
-          fetch(
-            `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${next.file}`,
-          ).catch(() => {});
+          const nextCacheKey = `reader-${storageId}-${next.file}`;
+          getChapterFromCache(nextCacheKey).then((alreadyCached) => {
+            if (alreadyCached) return;
+            fetch(
+              `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${next.file}`,
+            )
+              .then(async (r) => {
+                if (r.ok) {
+                  const html = await r.text();
+                  await setChapterInCache(nextCacheKey, html);
+                }
+              })
+              .catch(() => {});
+          });
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -915,7 +1001,7 @@ export default function BookReaderClient({
           const cacheKey = `reader-${bookId}-${item?.file}`;
           const cached = await getChapterFromCache(cacheKey);
           if (cached) {
-            setCurrentHtml(cached);
+            setCurrentHtml(ensureLazyImages(cached));
             setOfflineBanner(true);
           } else {
             setContentError(err instanceof Error ? err.message : "Qalad");
@@ -944,8 +1030,45 @@ export default function BookReaderClient({
     }
     restoredOnce.current = true;
   }, [loading, currentHtml, isPreview]);
+  // ── Flush progress on tab close / background ─────────────────────────────
+  // sendBeacon is reliable during unload; a normal fetch / server action is not.
+  // Skipped in preview mode and when not logged in (no server record to update).
+  useEffect(() => {
+    if (isPreview || itemType === "summary") return;
+
+    const flush = () => {
+      const payload = JSON.stringify({
+        bookId,
+        chapterIndex: chapterRef.current,
+        scrollOffset: Math.round(scrollOffsetRef.current),
+        timeSpent: timeSpentRef.current,
+      });
+      // Also update localStorage synchronously — doesn't need a network round-trip
+      writeLocalProgress(bookId, chapterRef.current, scrollOffsetRef.current);
+      // sendBeacon fires even after the page starts unloading
+      navigator.sendBeacon(
+        "/api/reader/save-progress",
+        new Blob([payload], { type: "application/json" }),
+      );
+    };
+
+    // pagehide is the most reliable unload event (covers mobile, back/forward cache)
+    const onPageHide = () => flush();
+    // visibilitychange catches tab switches to background on desktop
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [bookId, isPreview, itemType]);
 
   // Scroll: throttled progress, auto-hide chrome, debounced save
+
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
@@ -1108,13 +1231,23 @@ export default function BookReaderClient({
         />
       </div>
 
+      {/* Chapter change announcer for screen readers */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {chapterTitle ? `Cutub ${currentChapter + 1}: ${chapterTitle}` : ""}
+      </div>
+
       {/* Header */}
       <header
         style={{
           background: "var(--reader-bg)",
           borderBottom: "1px solid var(--reader-border)",
           transform: chromeOpen ? "translateY(0)" : "translateY(-110%)",
-          transition: "transform 0.25s ease",
+          transition: prefersReducedMotion.current ? "none" : "transform 0.25s ease",
         }}
         className="sticky top-0 z-40 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2"
       >
@@ -1440,8 +1573,9 @@ export default function BookReaderClient({
             style={{
               background: "var(--reader-accent)",
               width: `${Math.max(blendedPct, 2)}%`,
+              transition: prefersReducedMotion.current ? "none" : "width 300ms ease",
             }}
-            className="h-1 transition-all duration-300"
+            className="h-1"
           />
         </div>
       )}
@@ -1762,7 +1896,7 @@ export default function BookReaderClient({
         <footer
           style={{
             transform: chromeOpen ? "translateY(0)" : "translateY(120%)",
-            transition: "transform 0.25s ease",
+            transition: prefersReducedMotion.current ? "none" : "transform 0.25s ease",
           }}
           className="sticky bottom-4 z-30 max-w-sm mx-auto w-full px-4 pb-2 pointer-events-none"
         >

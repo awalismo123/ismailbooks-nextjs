@@ -553,3 +553,10 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
 }
+
+/* Visible focus indicator for interactive buttons across the application and reader */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--reader-accent, #7a1f2b);
+  outline-offset: 2px;
+}

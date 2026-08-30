@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { Bookmark, ChevronRight, X } from "lucide-react";
 
 export type BookmarkEntry = {
@@ -22,6 +22,8 @@ export default function BookmarksPanel({
   onClose: () => void;
   onJump: (chapterIndex: number, scrollOffset: number) => void;
 }) {
+  const [visibleCount, setVisibleCount] = useState(20);
+
   if (!open) return null;
 
   const panelStyle: CSSProperties = {
@@ -29,6 +31,12 @@ export default function BookmarksPanel({
     borderColor: "var(--reader-border)",
     color: "var(--reader-body)",
   };
+
+  const sortedBookmarks = bookmarks
+    .slice()
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const visibleBookmarks = sortedBookmarks.slice(0, visibleCount);
+  const hasMore = sortedBookmarks.length > visibleCount;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/25 backdrop-blur-[1px]">
@@ -75,37 +83,49 @@ export default function BookmarksPanel({
             </div>
           ) : (
             <div className="space-y-2">
-              {bookmarks
-                .slice()
-                .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-                .map((bookmark) => (
-                  <button
-                    key={bookmark.id}
-                    type="button"
-                    onClick={() => onJump(bookmark.chapterIndex, bookmark.scrollOffset)}
-                    className="w-full rounded-2xl border p-3 text-left transition-transform duration-150 hover:-translate-y-0.5"
-                    style={{
-                      borderColor: "var(--reader-border)",
-                      background: "var(--reader-surface)",
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--reader-muted)" }}>
-                          Cutub {bookmark.chapterIndex + 1}
-                        </p>
-                        <p className="mt-1 text-sm font-extrabold truncate" style={{ color: "var(--reader-heading)" }}>
-                          {bookmark.chapterTitle}
-                        </p>
-                      </div>
-                      <ChevronRight className="mt-1 h-4 w-4 shrink-0" style={{ color: "var(--reader-accent)" }} />
+              {visibleBookmarks.map((bookmark) => (
+                <button
+                  key={bookmark.id}
+                  type="button"
+                  onClick={() => onJump(bookmark.chapterIndex, bookmark.scrollOffset)}
+                  className="w-full rounded-2xl border p-3 text-left transition-transform duration-150 hover:-translate-y-0.5"
+                  style={{
+                    borderColor: "var(--reader-border)",
+                    background: "var(--reader-surface)",
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: "var(--reader-muted)" }}>
+                        Cutub {bookmark.chapterIndex + 1}
+                      </p>
+                      <p className="mt-1 text-sm font-extrabold truncate" style={{ color: "var(--reader-heading)" }}>
+                        {bookmark.chapterTitle}
+                      </p>
                     </div>
+                    <ChevronRight className="mt-1 h-4 w-4 shrink-0" style={{ color: "var(--reader-accent)" }} />
+                  </div>
 
-                    <p className="mt-2 line-clamp-3 text-xs leading-5" style={{ color: "var(--reader-body)" }}>
-                      {bookmark.previewText || "Calaamad laga dhigay cutubkan."}
-                    </p>
-                  </button>
-                ))}
+                  <p className="mt-2 line-clamp-3 text-xs leading-5" style={{ color: "var(--reader-body)" }}>
+                    {bookmark.previewText || "Calaamad laga dhigay cutubkan."}
+                  </p>
+                </button>
+              ))}
+
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                  className="w-full py-2.5 mt-2 rounded-xl border text-xs font-bold text-center hover:opacity-80 transition-opacity"
+                  style={{
+                    borderColor: "var(--reader-border)",
+                    background: "var(--reader-surface)",
+                    color: "var(--reader-accent)",
+                  }}
+                >
+                  Tus Dheeraad ah ({sortedBookmarks.length - visibleCount})
+                </button>
+              )}
             </div>
           )}
         </div>

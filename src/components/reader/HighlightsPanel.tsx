@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { ChevronRight, Highlighter, X } from "lucide-react";
 
 export type HighlightColor = "gold" | "navy" | "oxblood" | "green";
@@ -32,16 +32,21 @@ export default function HighlightsPanel({
   onClose: () => void;
   onJump: (chapterIndex: number, scrollOffset: number) => void;
 }) {
+  const [visibleCount, setVisibleCount] = useState(20);
+
   if (!open) return null;
 
-  const grouped = highlights
+  const sorted = highlights
     .slice()
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .reduce<Record<number, HighlightEntry[]>>((acc, item) => {
-      if (!acc[item.chapterIndex]) acc[item.chapterIndex] = [];
-      acc[item.chapterIndex].push(item);
-      return acc;
-    }, {});
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const visibleHighlights = sorted.slice(0, visibleCount);
+  const hasMore = sorted.length > visibleCount;
+
+  const grouped = visibleHighlights.reduce<Record<number, HighlightEntry[]>>((acc, item) => {
+    if (!acc[item.chapterIndex]) acc[item.chapterIndex] = [];
+    acc[item.chapterIndex].push(item);
+    return acc;
+  }, {});
 
   const panelStyle: CSSProperties = {
     background: "var(--reader-bg)",
@@ -138,6 +143,21 @@ export default function HighlightsPanel({
                     })}
                   </div>
                 ))}
+
+              {hasMore && (
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                  className="w-full py-2.5 mt-2 rounded-xl border text-xs font-bold text-center hover:opacity-80 transition-opacity"
+                  style={{
+                    borderColor: "var(--reader-border)",
+                    background: "var(--reader-surface)",
+                    color: "var(--reader-accent)",
+                  }}
+                >
+                  Tus Dheeraad ah ({sorted.length - visibleCount})
+                </button>
+              )}
             </div>
           )}
         </div>
