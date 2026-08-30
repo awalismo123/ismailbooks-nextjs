@@ -109,7 +109,7 @@ export default function SummaryReaderClient({
         if (saved && ["light", "sepia", "night"].includes(saved)) return saved;
       }
     } catch {}
-    return "light";
+    return isPreview ? "sepia" : "light";
   });
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>(() => {
     try {
@@ -243,27 +243,45 @@ export default function SummaryReaderClient({
         </article>
 
         {isPreview && (
-          <div className="mt-12 rounded-2xl border border-[#C9962E]/40 bg-gradient-to-b from-[#FBF7F0] to-[#FAF3E6] p-6 text-center shadow-lg mb-20">
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#C9962E]/20 text-[#C9962E]">
-              <Lock className="h-6 w-6" />
+          <div
+            className="mt-12 rounded-2xl sm:rounded-3xl border p-5 sm:p-8 text-center shadow-sm mb-20"
+            style={{
+              background: "var(--reader-surface)",
+              borderColor: "rgba(201, 150, 46, 0.3)",
+            }}
+          >
+            <div className="mx-auto mb-3 sm:mb-4 flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-[#C9962E]/10 text-[#C9962E]">
+              <Lock className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
-            <h3 className="font-display text-lg font-extrabold text-[#201B16]">
+            <h3
+              className="font-display text-lg sm:text-xl font-extrabold"
+              style={{ color: "var(--reader-heading)" }}
+            >
               Soo-koobidda Buuxda waa Premium
             </h3>
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-[#6B5F52]">
+            <p
+              className="mx-auto mt-2 max-w-sm text-xs sm:text-sm leading-relaxed"
+              style={{ color: "var(--reader-muted)" }}
+            >
               Kani waa tijaabada soo-koobidda. Si aad u akhriso dhammaan qodobada muhiimka ah, iibso soo-koobidda ama buugga.
             </p>
-            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href={`/payment/${summaryId}`}
-                className="btn btn-primary btn-block sm:w-auto"
+                className="btn w-full sm:w-auto min-h-[44px] px-5 rounded-xl font-extrabold text-xs sm:text-sm border-0 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                style={{ background: "#C9962E", color: "#1A1208" }}
               >
                 <CreditCard className="h-4 w-4" />
                 Iibso Hadda {price ? `($${price})` : ""}
               </Link>
               <Link
                 href={`/summaries/${summaryId}`}
-                className="btn btn-secondary btn-block sm:w-auto"
+                className="btn w-full sm:w-auto min-h-[44px] px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors hover:opacity-80"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--reader-border)",
+                  color: "var(--reader-heading)",
+                }}
               >
                 Eeg Faahfaahinta
               </Link>

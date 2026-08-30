@@ -124,7 +124,7 @@ export default function BookReaderClient({
     changeFontFamily,
     changeLineSpacing,
     toggleFullscreen,
-  } = useReaderPrefs();
+  } = useReaderPrefs({ isPreview });
 
   // Auth state
   const { data: session } = useSession();

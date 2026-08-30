@@ -65,12 +65,12 @@ export const LS_FONT_SIZE = "ib_reader_font_size";
 export const LS_FONT_FAMILY = "ib_reader_font_family";
 export const LS_LINE_SPACING = "ib_reader_line_spacing";
 
-export function useReaderPrefs() {
+export function useReaderPrefs(options?: { isPreview?: boolean }) {
   // All reader-settings defaults are applied here and overridden after mount
   // in the hydration useEffect — avoids SSR/client mismatch.
   const [fontSize, setFontSize] = useState<number>(18);
   const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
-  const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
+  const [readerTheme, setReaderTheme] = useState<ReaderTheme>(options?.isPreview ? "sepia" : "light");
   const [lineSpacing, setLineSpacing] = useState<LineSpacing>("normal");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
@@ -96,6 +96,8 @@ export function useReaderPrefs() {
       const savedTheme = localStorage.getItem(LS_THEME) as ReaderTheme | null;
       if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
         setReaderTheme(savedTheme);
+      } else if (options?.isPreview) {
+        setReaderTheme("sepia");
       }
     } catch {}
 
@@ -105,7 +107,7 @@ export function useReaderPrefs() {
         setLineSpacing(savedSpacing);
       }
     } catch {}
-  }, []);
+  }, [options?.isPreview]);
 
   const changeTheme = (t: ReaderTheme) => {
     setReaderTheme(t);
