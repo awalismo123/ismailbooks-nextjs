@@ -4,16 +4,6 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Link from "next/link";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useSession } from "next-auth/react";
-import {
-  saveProgressAction,
-  loadProgressAction,
-  syncBookmarksAction,
-  syncHighlightsAction,
-  loadBookmarksAction,
-  loadHighlightsAction,
-  deleteBookmarkAction,
-  deleteHighlightAction,
-} from "@/app/actions/reader";
 import { createClient } from "@/lib/supabase/client";
 import {
   ChevronLeft,
@@ -45,13 +35,22 @@ import ReaderBackButton from "@/components/reader/ReaderBackButton";
 import type {
   ReaderTheme,
   FontFamily,
-  LineSpacing,
 } from "@/components/reader/ReaderSettingsSheet";
-import type { BookmarkEntry } from "@/components/reader/BookmarksPanel";
-import type { HighlightEntry, HighlightColor } from "@/components/reader/HighlightsPanel";
-import type { AnnotationsTab } from "@/components/reader/AnnotationsSheet";
 import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
 import { BookCard, type BookCardData } from "@/components/books/BookCard";
+import {
+  useReaderPrefs,
+  THEME_STYLES,
+  FONT_CLASSES,
+  LINE_HEIGHT,
+} from "@/hooks/useReaderPrefs";
+import {
+  useReaderProgress,
+  type TocItem,
+  writeLocalProgress,
+} from "@/hooks/useReaderProgress";
+import { useAnnotations } from "@/hooks/useAnnotations";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 const ReaderSearchBar = dynamic(
   () => import("@/components/reader/ReaderSearchBar"),
@@ -70,8 +69,6 @@ const HighlightToolbar = dynamic(
   { ssr: false }
 );
 
-type TocItem = { title: string; file: string };
-
 const SUPABASE_URL = (() => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!url) {
@@ -82,140 +79,9 @@ const SUPABASE_URL = (() => {
   return url;
 })();
 
-const THEME_STYLES: Record<ReaderTheme, React.CSSProperties> = {
-  light: {
-    "--reader-bg": "#FFFFFF",
-    "--reader-surface": "#F9F6F1",
-    "--reader-border": "#E8DFD2",
-    "--reader-heading": "#201B16",
-    "--reader-body": "#3A3028",
-    "--reader-muted": "#6B5F52",
-    "--reader-accent": "#7A1F2B",
-  } as React.CSSProperties,
-  sepia: {
-    "--reader-bg": "#F5EDD6",
-    "--reader-surface": "#EDE0C4",
-    "--reader-border": "#D4BC90",
-    "--reader-heading": "#2C1B0A",
-    "--reader-body": "#4A3420",
-    "--reader-muted": "#7A5C3A",
-    "--reader-accent": "#8B4513",
-  } as React.CSSProperties,
-  night: {
-    "--reader-bg": "#13111A",
-    "--reader-surface": "#1E1B27",
-    "--reader-border": "#2D2A38",
-    "--reader-heading": "#EDE0FF",
-    "--reader-body": "#C0B8D8",
-    "--reader-muted": "#7B7493",
-    "--reader-accent": "#A78BFA",
-  } as React.CSSProperties,
-};
-
-const FONT_CLASSES: Record<FontFamily, string> = {
-  serif: "font-serif",
-  sans: "font-sans",
-  mono: "font-mono",
-  dyslexia: "font-dyslexia",
-};
-
-// Dyslexia high-readability style — injected once
-const DYSLEXIA_STYLE_ID = "ib-dyslexia-font";
-function ensureDyslexiaFont() {
-  if (typeof document === "undefined") return;
-  if (document.getElementById(DYSLEXIA_STYLE_ID)) return;
-  const style = document.createElement("style");
-  style.id = DYSLEXIA_STYLE_ID;
-  style.textContent = `.font-dyslexia { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important; letter-spacing: 0.1em !important; word-spacing: 0.25em !important; line-height: 2 !important; }`;
-  document.head.appendChild(style);
-}
-
 function ensureLazyImages(html: string): string {
   if (!html) return "";
   return html.replace(/<img(?![^>]*\bloading\s*=)/gi, '<img loading="lazy"');
-}
-
-const LINE_HEIGHT: Record<LineSpacing, number> = {
-  normal: 1.85,
-  relaxed: 2.1,
-};
-
-const LS_THEME = "ib_reader_theme";
-const LS_FONT_SIZE = "ib_reader_font_size";
-const LS_FONT_FAMILY = "ib_reader_font_family";
-const LS_LINE_SPACING = "ib_reader_line_spacing";
-
-function localProgressKey(bookId: string) {
-  return `ib_progress_${bookId}`;
-}
-
-function readLocalProgress(bookId: string): {
-  chapterIndex: number;
-  scrollOffset: number;
-} | null {
-  try {
-    const raw = localStorage.getItem(localProgressKey(bookId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return {
-      chapterIndex: Number(parsed.chapterIndex) || 0,
-      scrollOffset: Number(parsed.scrollOffset) || 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalProgress(
-  bookId: string,
-  chapterIndex: number,
-  scrollOffset: number,
-) {
-  try {
-    localStorage.setItem(
-      localProgressKey(bookId),
-      JSON.stringify({ chapterIndex, scrollOffset, updatedAt: Date.now() }),
-    );
-  } catch {}
-}
-
-// ── Streak helpers ─────────────────────────────────────────────────────────
-function streakKey(bookId: string) { return `ib_streak_${bookId}`; }
-
-function recordReadingDay(bookId: string) {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    const raw = localStorage.getItem(streakKey(bookId));
-    const days: string[] = raw ? JSON.parse(raw) : [];
-    if (!days.includes(today)) {
-      days.push(today);
-      // keep last 60 days only
-      if (days.length > 60) days.splice(0, days.length - 60);
-      localStorage.setItem(streakKey(bookId), JSON.stringify(days));
-    }
-  } catch {}
-}
-
-function computeStreak(bookId: string): number {
-  try {
-    const raw = localStorage.getItem(streakKey(bookId));
-    if (!raw) return 0;
-    const days: string[] = JSON.parse(raw);
-    if (days.length === 0) return 0;
-    const sorted = [...days].sort().reverse();
-    const today = new Date().toISOString().slice(0, 10);
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-    if (sorted[0] !== today && sorted[0] !== yesterday) return 0;
-    let streak = 1;
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = new Date(sorted[i - 1]);
-      const curr = new Date(sorted[i]);
-      const diff = Math.round((prev.getTime() - curr.getTime()) / 86400000);
-      if (diff === 1) streak++;
-      else break;
-    }
-    return streak;
-  } catch { return 0; }
 }
 
 // ── IndexedDB chapter cache ────────────────────────────────────────────────
@@ -227,7 +93,9 @@ async function getChapterFromCache(key: string): Promise<string | null> {
     if (!entry) return null;
     if (Date.now() - entry.ts > IDB_TTL_MS) return null;
     return entry.html;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function setChapterInCache(key: string, html: string) {
@@ -260,46 +128,27 @@ export default function BookReaderClient({
   isPaid?: boolean;
 }) {
   const storageId = itemType === "summary" ? `summary_${bookId}` : bookId;
-  // All reader-settings defaults are applied here and overridden after mount
-  // in the hydration useEffect — avoids SSR/client mismatch.
-  const [fontSize, setFontSize] = useState<number>(18);
-  const [fontFamily, setFontFamily] = useState<FontFamily>("serif");
-  const [readerTheme, setReaderTheme] = useState<ReaderTheme>("light");
-  const [lineSpacing, setLineSpacing] = useState<LineSpacing>("normal");
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [chromeVisible, setChromeVisible] = useState(true);
+
+  // 1. Reader preferences (theme, font, spacing, fullscreen, chrome visibility)
+  const {
+    fontSize,
+    fontFamily,
+    readerTheme,
+    lineSpacing,
+    isFullscreen,
+    chromeVisible,
+    setChromeVisible,
+    changeTheme,
+    changeFontSize,
+    changeFontFamily,
+    changeLineSpacing,
+    toggleFullscreen,
+  } = useReaderPrefs();
+
+  // Auth state
   const { data: session } = useSession();
   const [supabaseLoggedIn, setSupabaseLoggedIn] = useState(false);
   const isLoggedIn = Boolean(session?.user) || supabaseLoggedIn;
-
-  const [annotationsOpen, setAnnotationsOpen] = useState(false);
-  const [annotationsTab, setAnnotationsTab] = useState<AnnotationsTab>("bookmarks");
-  const contentRef = useRef<HTMLElement | null>(null);
-  const didHydrateRemoteAnnotations = useRef(false);
-  const bookmarksRef = useRef<BookmarkEntry[]>([]);
-  const highlightsRef = useRef<HighlightEntry[]>([]);
-  // Initialise to empty; populated after mount in the hydration useEffect below.
-  const [highlights, setHighlights] = useState<HighlightEntry[]>([]);
-  const [currentChapter, setCurrentChapter] = useState(initialChapter);
-  const [tocOpen, setTocOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [paywallModalOpen, setPaywallModalOpen] = useState(false);
-  const [showPreviewCta, setShowPreviewCta] = useState(false);
-  const [previewLimit, setPreviewLimit] = useState(0);
-
-  // Phase 2 state
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchHighlightedHtml, setSearchHighlightedHtml] = useState<string | null>(null);
-  // Initialise to 0/false; real values loaded in the hydration useEffect below.
-  const [streakDays, setStreakDays] = useState(0);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [offlineBanner, setOfflineBanner] = useState(false);
-  // Initialise to false; real value loaded from sessionStorage after mount.
-  const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(false);
-  const [resumeBanner, setResumeBanner] = useState<{
-    chapter: number;
-    pct: number;
-  } | null>(null);
 
   useEffect(() => {
     if (session) return;
@@ -308,15 +157,19 @@ export default function BookReaderClient({
     const supabase = createClient();
 
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (active) setSupabaseLoggedIn(Boolean(user));
     };
 
     void checkUser();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (active) setSupabaseLoggedIn(Boolean(currentSession?.user));
-    });
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, currentSession) => {
+        if (active) setSupabaseLoggedIn(Boolean(currentSession?.user));
+      }
+    );
 
     return () => {
       active = false;
@@ -324,97 +177,19 @@ export default function BookReaderClient({
     };
   }, [session]);
 
-  const dismissOwnerNudge = useCallback(() => {
-    setOwnerNudgeDismissed(true);
-    try {
-      sessionStorage.setItem(`ib_owner_nudge_${bookId}`, "true");
-    } catch {}
-  }, [bookId]);
+  // UI modal / panel state
+  const contentRef = useRef<HTMLElement | null>(null);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paywallModalOpen, setPaywallModalOpen] = useState(false);
+  const [showPreviewCta, setShowPreviewCta] = useState(false);
+  const [previewLimit, setPreviewLimit] = useState(0);
 
-  // ── Post-mount hydration ───────────────────────────────────────────────────
-  // All state that reads localStorage/sessionStorage is initialised to a safe
-  // default above, then hydrated here after mount to avoid SSR/client mismatches.
-  useEffect(() => {
-    // Reader settings
-    try {
-      const savedFontSize = localStorage.getItem(LS_FONT_SIZE);
-      const n = Number(savedFontSize);
-      if (savedFontSize && n >= 14 && n <= 30) setFontSize(n);
-    } catch {}
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchHighlightedHtml, setSearchHighlightedHtml] = useState<string | null>(null);
+  const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(false);
 
-    try {
-      const savedFamily = localStorage.getItem(LS_FONT_FAMILY) as FontFamily | null;
-      if (savedFamily && ["serif", "sans", "mono", "dyslexia"].includes(savedFamily)) {
-        if (savedFamily === "dyslexia") ensureDyslexiaFont();
-        setFontFamily(savedFamily);
-      }
-    } catch {}
-
-    try {
-      const savedTheme = localStorage.getItem(LS_THEME) as ReaderTheme | null;
-      if (savedTheme && ["light", "sepia", "night"].includes(savedTheme)) {
-        setReaderTheme(savedTheme);
-      }
-    } catch {}
-
-    try {
-      const savedSpacing = localStorage.getItem(LS_LINE_SPACING) as LineSpacing | null;
-      if (savedSpacing && ["normal", "relaxed"].includes(savedSpacing)) {
-        setLineSpacing(savedSpacing);
-      }
-    } catch {}
-
-    // Bookmarks
-    const localBookmarks = readBookmarks();
-    if (localBookmarks.length > 0) setBookmarks(localBookmarks);
-
-    // Highlights
-    try {
-      const raw = localStorage.getItem(`ib_highlights_${bookId}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) setHighlights(parsed);
-      }
-    } catch {}
-
-    // Owner nudge dismissed flag
-    try {
-      if (sessionStorage.getItem(`ib_owner_nudge_${bookId}`) === "true") {
-        setOwnerNudgeDismissed(true);
-      }
-    } catch {}
-
-    // Streak — record today and compute
-    if (!isPreview) {
-      try { recordReadingDay(bookId); } catch {}
-      setStreakDays(computeStreak(bookId));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — runs exactly once after first mount
-
-  // Network connectivity status for offline banner
-  useEffect(() => {
-    const handleOnline = () => setOfflineBanner(false);
-    const handleOffline = () => setOfflineBanner(true);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      setOfflineBanner(true);
-    }
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-
-  const prefersReducedMotion = useRef(false);
-  useEffect(() => {
-    prefersReducedMotion.current = window.matchMedia(
-      "(prefers-reduced-motion: reduce)"
-    ).matches;
-  }, []);
-
-  // Phase 3 state
+  // Content fetching & scroll state
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const lastScrollTime = useRef(0);
@@ -424,367 +199,100 @@ export default function BookReaderClient({
   const [loading, setLoading] = useState(true);
   const [contentError, setContentError] = useState<string | null>(null);
   const [hasContent, setHasContent] = useState(true);
-
-  const [initialLoadDone, setInitialLoadDone] = useState(isPreview);
   const [scrollProgressPct, setScrollProgressPct] = useState(0);
-  const timeSpentRef = useRef(0);
-  const chapterRef = useRef(initialChapter);
-  const scrollOffsetRef = useRef(initialScrollOffset);
-  const pendingScrollRestore = useRef(initialScrollOffset);
   const lastScrollY = useRef(0);
   const saveScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endSentinelRef = useRef<HTMLDivElement | null>(null);
-  const restoredOnce = useRef(false);
 
-  const changeTheme = (t: ReaderTheme) => {
-    setReaderTheme(t);
-    try {
-      localStorage.setItem(LS_THEME, t);
-    } catch {}
-  };
+  // 2. Network connectivity status
+  const { offlineBanner, setOfflineBanner } = useNetworkStatus();
 
-  const changeFontSize = (delta: number) => {
-    setFontSize((prev) => {
-      const next = Math.min(30, Math.max(14, prev + delta));
-      try {
-        localStorage.setItem(LS_FONT_SIZE, String(next));
-      } catch {}
-      return next;
-    });
-  };
+  // 3. Reader progress & streak hook
+  const {
+    currentChapter,
+    setCurrentChapter,
+    initialLoadDone,
+    resumeBanner,
+    setResumeBanner,
+    streakDays,
+    showCelebration,
+    chapterRef,
+    scrollOffsetRef,
+    timeSpentRef,
+    pendingScrollRestore,
+    restoredOnce,
+    saveProgress,
+    goTo,
+  } = useReaderProgress({
+    bookId,
+    itemType,
+    isPreview,
+    initialChapter,
+    initialScrollOffset,
+    toc,
+    scrollProgressPct,
+    loading,
+    previewLimit,
+    setPaywallModalOpen,
+    setTocOpen,
+    setChromeVisible,
+  });
 
-  const changeFontFamily = (f: FontFamily) => {
-    setFontFamily(f);
-    if (f === "dyslexia") ensureDyslexiaFont();
-    try {
-      localStorage.setItem(LS_FONT_FAMILY, f);
-    } catch {}
-  };
-
-  const changeLineSpacing = (s: LineSpacing) => {
-    setLineSpacing(s);
-    try {
-      localStorage.setItem(LS_LINE_SPACING, s);
-    } catch {}
-  };
-
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement
-        .requestFullscreen()
-        .then(() => setIsFullscreen(true))
-        .catch(() => {});
-    } else if (document.exitFullscreen) {
-      document
-        .exitFullscreen()
-        .then(() => setIsFullscreen(false))
-        .catch(() => {});
-    }
-  };
-
-  const bookmarkListKey = `ib_bookmarks_${bookId}`;
-  const legacyBookmarkKey = `ib_bm_${bookId}`;
-
-  const normalizeBookmark = (raw: unknown): BookmarkEntry | null => {
-    if (!raw || typeof raw !== "object") return null;
-    const item = raw as Record<string, unknown>;
-    const chapterIndex = Number(item.chapterIndex ?? item.chapter_index ?? 0);
-    const scrollOffset = Number(item.scrollOffset ?? item.scroll_offset ?? 0);
-    const chapterTitle =
-      typeof item.chapterTitle === "string" && item.chapterTitle.trim()
-        ? item.chapterTitle
-        : typeof item.title === "string" && item.title.trim()
-          ? item.title
-          : `Cutubka ${chapterIndex + 1}`;
-    const previewText =
-      typeof item.previewText === "string" && item.previewText.trim()
-        ? item.previewText
-        : typeof item.preview === "string" && item.preview.trim()
-          ? item.preview
-          : `${chapterTitle} — marka aan ku calaamadisay.`;
-    const createdAt =
-      typeof item.createdAt === "string" && item.createdAt
-        ? item.createdAt
-        : typeof item.timestamp === "string" && item.timestamp
-          ? item.timestamp
-          : new Date().toISOString();
-
-    if (!Number.isFinite(chapterIndex)) return null;
-
-    return {
-      id: String(item.id || `bookmark-${bookId}-${chapterIndex}-${Math.round(scrollOffset / 100)}`),
-      bookId,
-      chapterIndex,
-      chapterTitle,
-      previewText,
-      scrollOffset,
-      createdAt,
-    };
-  };
-
-  const readBookmarks = () => {
-    if (typeof window === "undefined") return [];
-    try {
-      const rawList = localStorage.getItem(bookmarkListKey);
-      if (rawList) {
-        const parsed = JSON.parse(rawList);
-        if (Array.isArray(parsed)) {
-          return parsed
-            .map((item) => normalizeBookmark(item))
-            .filter((item): item is BookmarkEntry => Boolean(item));
-        }
-      }
-
-      const legacyRaw = localStorage.getItem(legacyBookmarkKey);
-      if (legacyRaw) {
-        const legacy = normalizeBookmark(JSON.parse(legacyRaw));
-        const migrated = legacy ? [legacy] : [];
-        localStorage.setItem(bookmarkListKey, JSON.stringify(migrated));
-        localStorage.removeItem(legacyBookmarkKey);
-        return migrated;
-      }
-
-      return [];
-    } catch {
-      return [];
-    }
-  };
-
-  // Initialise to empty; populated after mount in the hydration useEffect below.
-  const [bookmarks, setBookmarks] = useState<BookmarkEntry[]>([]);
-  bookmarksRef.current = bookmarks;
-  highlightsRef.current = highlights;
-
-  const mergeLocalAndRemoteBookmarks = useCallback((localEntries: BookmarkEntry[], remoteEntries: BookmarkEntry[]) => {
-    const merged = new Map<string, BookmarkEntry>();
-
-    [...remoteEntries, ...localEntries].forEach((entry) => {
-      const key = `${entry.bookId}|${entry.chapterIndex}|${Math.round(entry.scrollOffset / 150)}|${entry.previewText.slice(0, 60)}`;
-      const existing = merged.get(key);
-      if (!existing || new Date(entry.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
-        merged.set(key, entry);
-      }
-    });
-
-    return Array.from(merged.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, []);
-
-  const mergeLocalAndRemoteHighlights = useCallback((localEntries: HighlightEntry[], remoteEntries: HighlightEntry[]) => {
-    const merged = new Map<string, HighlightEntry>();
-
-    [...remoteEntries, ...localEntries].forEach((entry) => {
-      const key = `${entry.bookId}|${entry.chapterIndex}|${entry.color}|${entry.text.slice(0, 60)}`;
-      const existing = merged.get(key);
-      if (!existing || new Date(entry.createdAt).getTime() > new Date(existing.createdAt).getTime()) {
-        merged.set(key, entry);
-      }
-    });
-
-    return Array.from(merged.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, []);
-
-  const syncBookmarksToCloud = useCallback(async (next: BookmarkEntry[]) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
-    const formData = new FormData();
-    formData.append("bookId", String(bookId));
-    formData.append("items", JSON.stringify(next));
-    await syncBookmarksAction(formData);
-  }, [bookId, isLoggedIn]);
-
-  const syncHighlightsToCloud = useCallback(async (next: HighlightEntry[]) => {
-    if (!isLoggedIn || typeof window === "undefined") return;
-    const formData = new FormData();
-    formData.append("bookId", String(bookId));
-    formData.append("items", JSON.stringify(next));
-    await syncHighlightsAction(formData);
-  }, [bookId, isLoggedIn]);
-
-  const isBookmarked = bookmarks.some(
-    (bookmark) =>
-      bookmark.chapterIndex === currentChapter &&
-      Math.abs(bookmark.scrollOffset - scrollOffsetRef.current) < 250,
-  );
-
-  const persistBookmarks = useCallback((next: BookmarkEntry[]) => {
-    setBookmarks(next);
-    try {
-      localStorage.setItem(bookmarkListKey, JSON.stringify(next));
-    } catch {}
-    if (isLoggedIn) {
-      void syncBookmarksToCloud(next);
-    }
-  }, [bookmarkListKey, isLoggedIn, syncBookmarksToCloud]);
-
-  const persistHighlights = useCallback((next: HighlightEntry[]) => {
-    setHighlights(next);
-    try {
-      localStorage.setItem(`ib_highlights_${bookId}`, JSON.stringify(next));
-    } catch {}
-    if (isLoggedIn) {
-      void syncHighlightsToCloud(next);
-    }
-  }, [bookId, isLoggedIn, syncHighlightsToCloud]);
-
-  const toggleBookmark = () => {
-    try {
-      const chapterTitle =
-        toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
-      const previewText = (() => {
-        if (!currentHtml) {
-          return `${chapterTitle} — waxa la calaamadiyey.`;
-        }
-        const clean = currentHtml
-          .replace(/<script[\s\S]*?<\/script>/gi, " ")
-          .replace(/<style[\s\S]*?<\/style>/gi, " ")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-        return clean.slice(0, 120) || `${chapterTitle} — waxa la calaamadiyey.`;
-      })();
-
-      const existingMatch = bookmarks.find(
-        (bookmark) =>
-          bookmark.chapterIndex === currentChapter &&
-          Math.abs(bookmark.scrollOffset - scrollOffsetRef.current) < 250,
-      );
-
-      if (existingMatch) {
-        persistBookmarks(bookmarks.filter((bookmark) => bookmark.id !== existingMatch.id));
-        return;
-      }
-
-      const nextBookmark: BookmarkEntry = {
-        id: `bookmark-${bookId}-${currentChapter}-${Date.now()}`,
-        bookId,
-        chapterIndex: currentChapter,
-        chapterTitle,
-        previewText,
-        scrollOffset: scrollOffsetRef.current,
-        createdAt: new Date().toISOString(),
-      };
-
-      persistBookmarks([nextBookmark, ...bookmarks]);
-    } catch {}
-  };
-
-  const jumpToBookmark = (bookmark: BookmarkEntry) => {
-    setAnnotationsOpen(false);
-    setCurrentChapter(bookmark.chapterIndex);
-    pendingScrollRestore.current = bookmark.scrollOffset;
-    scrollOffsetRef.current = bookmark.scrollOffset;
-    setChromeVisible(true);
-    window.setTimeout(() => {
-      window.scrollTo({ top: bookmark.scrollOffset, behavior: "smooth" });
-    }, 80);
-  };
-
-  const jumpToHighlight = (highlight: HighlightEntry) => {
-    setAnnotationsOpen(false);
-    setCurrentChapter(highlight.chapterIndex);
-    setChromeVisible(true);
-    window.setTimeout(() => {
-      const mark = document.querySelector(
-        `mark[data-hl-id="${CSS.escape(highlight.id)}"]`,
-      ) as HTMLElement | null;
-      if (mark) {
-        mark.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      window.scrollTo({ top: highlight.scrollOffset || 0, behavior: "smooth" });
-    }, 120);
-  };
-
-  const createHighlight = (text: string, color: HighlightColor = "gold") => {
-    const cleaned = text.replace(/\s+/g, " ").trim();
-    if (cleaned.length < 2) return;
-
-    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
-    const nextHighlight: HighlightEntry = {
-      id: `highlight-${bookId}-${currentChapter}-${Date.now()}`,
-      bookId,
-      chapterIndex: currentChapter,
-      chapterTitle,
-      text: cleaned,
-      color,
-      scrollOffset: scrollOffsetRef.current,
-      createdAt: new Date().toISOString(),
-    };
-
-    persistHighlights([nextHighlight, ...highlightsRef.current]);
-  };
-
-  const createBookmarkFromText = (text: string) => {
-    const cleaned = text.replace(/\s+/g, " ").trim();
-    if (cleaned.length < 2) return;
-
-    const chapterTitle = toc?.[currentChapter]?.title || `Cutubka ${currentChapter + 1}`;
-    const nextBookmark: BookmarkEntry = {
-      id: `bookmark-${bookId}-${currentChapter}-${Date.now()}`,
-      bookId,
-      chapterIndex: currentChapter,
-      chapterTitle,
-      previewText: cleaned.length > 160 ? `${cleaned.slice(0, 157)}...` : cleaned,
-      scrollOffset: scrollOffsetRef.current,
-      createdAt: new Date().toISOString(),
-    };
-
-    persistBookmarks([nextBookmark, ...bookmarksRef.current]);
-  };
-
-  const removeBookmark = (id: string) => {
-    persistBookmarks(bookmarksRef.current.filter((item) => item.id !== id));
-    if (isLoggedIn) void deleteBookmarkAction(id);
-  };
-
-  const removeHighlight = (id: string) => {
-    persistHighlights(highlightsRef.current.filter((item) => item.id !== id));
-    if (isLoggedIn) void deleteHighlightAction(id);
-  };
-
-  useEffect(() => {
-    if (!isLoggedIn) {
-      didHydrateRemoteAnnotations.current = false;
-      return;
-    }
-    if (didHydrateRemoteAnnotations.current) return;
-    didHydrateRemoteAnnotations.current = true;
-
-    const loadRemoteAnnotations = async () => {
-      try {
-        const [remoteBookmarks, remoteHighlights] = await Promise.all([
-          loadBookmarksAction(Number(bookId)),
-          loadHighlightsAction(Number(bookId)),
-        ]);
-
-        const mergedBookmarks = mergeLocalAndRemoteBookmarks(
-          bookmarksRef.current,
-          remoteBookmarks,
-        );
-        const mergedHighlights = mergeLocalAndRemoteHighlights(
-          highlightsRef.current,
-          remoteHighlights as HighlightEntry[],
-        );
-
-        persistBookmarks(mergedBookmarks);
-        persistHighlights(mergedHighlights);
-      } catch {}
-    };
-
-    void loadRemoteAnnotations();
-  }, [
+  // 4. Annotations hook (bookmarks & highlights)
+  const {
+    bookmarks,
+    highlights,
+    annotationsOpen,
+    setAnnotationsOpen,
+    annotationsTab,
+    setAnnotationsTab,
+    isBookmarked,
+    toggleBookmark,
+    jumpToBookmark,
+    jumpToHighlight,
+    createHighlight,
+    createBookmarkFromText,
+    removeBookmark,
+    removeHighlight,
+  } = useAnnotations({
     bookId,
     isLoggedIn,
-    mergeLocalAndRemoteBookmarks,
-    mergeLocalAndRemoteHighlights,
-    persistBookmarks,
-    persistHighlights,
-  ]);
+    currentChapter,
+    scrollOffsetRef,
+    toc,
+    currentHtml,
+    setCurrentChapter,
+    pendingScrollRestore,
+    setChromeVisible,
+  });
+
+  const dismissOwnerNudge = useCallback(() => {
+    setOwnerNudgeDismissed(true);
+    try {
+      sessionStorage.setItem(`ib_owner_nudge_${bookId}`, "true");
+    } catch {}
+  }, [bookId]);
+
+  // Post-mount hydration for owner nudge flag
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(`ib_owner_nudge_${bookId}`) === "true") {
+        setOwnerNudgeDismissed(true);
+      }
+    } catch {}
+  }, [bookId]);
+
+  const prefersReducedMotion = useRef(false);
+  useEffect(() => {
+    prefersReducedMotion.current = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+  }, []);
 
   const annotatedHtml = useMemo(() => {
     const chapterItems = highlights.filter((h) => h.chapterIndex === currentChapter);
     return applyHighlightsToHtml(currentHtml, chapterItems);
   }, [currentHtml, highlights, currentChapter]);
-
 
   // TOC
   useEffect(() => {
@@ -804,7 +312,7 @@ export default function BookReaderClient({
       }
     }
     loadToc();
-  }, [bookId, SUPABASE_URL]);
+  }, [bookId, storageId]);
 
   // Find the first chapter with real prose for the preview limit
   useEffect(() => {
@@ -815,7 +323,9 @@ export default function BookReaderClient({
       let firstProse = 0;
       for (let i = 0; i < Math.min(toc!.length, 10); i++) {
         try {
-          const res = await fetch(`${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${toc![i].file}`);
+          const res = await fetch(
+            `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${toc![i].file}`,
+          );
           const html = await res.text();
           const pCount = (html.match(/<p\b[^>]*>/gi) || []).length;
           if (pCount >= 3) {
@@ -835,109 +345,10 @@ export default function BookReaderClient({
     }
     findFirstProseChapter();
 
-    return () => { cancelled = true; };
-  }, [toc, bookId, SUPABASE_URL, isPreview]);
-
-  // Progress bootstrap
-  useEffect(() => {
-    if (isPreview) {
-      setInitialLoadDone(true);
-      return;
-    }
-
-    async function bootstrap() {
-      const local = readLocalProgress(bookId);
-      let chapter = initialChapter;
-      let offset = initialScrollOffset;
-
-      if (initialChapter > 0 || initialScrollOffset > 0) {
-        chapter = initialChapter;
-        offset = initialScrollOffset;
-      } else {
-        const progress = itemType !== "summary" ? await loadProgressAction(Number(bookId)) : null;
-        if (progress) {
-          chapter = progress.chapterIndex ?? 0;
-          offset = progress.scrollOffset ?? 0;
-          timeSpentRef.current = progress.timeSpent ?? 0;
-        } else if (local) {
-          chapter = local.chapterIndex;
-          offset = local.scrollOffset;
-        }
-      }
-
-      // Prefer newer local scroll if same chapter
-      if (local && local.chapterIndex === chapter && local.scrollOffset > offset) {
-        offset = local.scrollOffset;
-      }
-
-      setCurrentChapter(chapter);
-      chapterRef.current = chapter;
-      scrollOffsetRef.current = offset;
-      pendingScrollRestore.current = offset;
-
-      if (offset > 120) {
-        setResumeBanner({
-          chapter,
-          pct: Math.min(99, Math.round((offset / Math.max(offset + 400, 800)) * 100)),
-        });
-      }
-
-      setInitialLoadDone(true);
-    }
-
-    bootstrap();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookId, isPreview]);
-
-  useEffect(() => {
-    if (isPreview) return;
-    const timer = setInterval(() => {
-      timeSpentRef.current += 30;
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [isPreview]);
-
-  const showSavedToast = useCallback(() => {
-    // Disabled visual toast for silent saving
-  }, []);
-
-  const saveProgress = useCallback(() => {
-    if (!initialLoadDone || !bookId || isPreview || itemType === "summary") return;
-    writeLocalProgress(bookId, chapterRef.current, scrollOffsetRef.current);
-    const fd = new FormData();
-    fd.append("bookId", bookId);
-    fd.append("chapterIndex", String(chapterRef.current));
-    fd.append("scrollOffset", String(Math.round(scrollOffsetRef.current)));
-    fd.append("timeSpent", String(timeSpentRef.current));
-    const isCompleted = toc ? chapterRef.current === toc.length - 1 : false;
-    fd.append("completed", String(isCompleted));
-    saveProgressAction(fd)
-      .then(() => showSavedToast())
-      .catch(() => {});
-  }, [initialLoadDone, bookId, toc, isPreview, showSavedToast]);
-
-  // Keep a stable ref to the latest saveProgress so the 60-s interval below
-  // does not need it in its dep array (which would reset the interval every
-  // chapter change and potentially skip saves on fast navigation).
-  const saveProgressRef = useRef(saveProgress);
-  useEffect(() => { saveProgressRef.current = saveProgress; }, [saveProgress]);
-
-  // Update chapterRef and fire an immediate save on every chapter change.
-  useEffect(() => {
-    if (!initialLoadDone || isPreview) return;
-    chapterRef.current = currentChapter;
-    saveProgress();
-  // saveProgress is stable across chapter changes (reads chapterRef internally)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentChapter, initialLoadDone, isPreview]);
-
-  // Stable 60-second autosave interval — set up once, never torn down by
-  // chapter changes. Uses saveProgressRef so it always calls the latest version.
-  useEffect(() => {
-    if (!initialLoadDone || isPreview) return;
-    const interval = setInterval(() => saveProgressRef.current(), 60000);
-    return () => clearInterval(interval);
-  }, [initialLoadDone, isPreview]);
+    return () => {
+      cancelled = true;
+    };
+  }, [toc, bookId, storageId, isPreview, currentChapter, setCurrentChapter, chapterRef]);
 
   // Chapter fetch + prefetch next (with IndexedDB cache)
   useEffect(() => {
@@ -961,12 +372,14 @@ export default function BookReaderClient({
           setCurrentHtml(ensureLazyImages(cached));
           setLoading(false);
           // Background revalidate
-          fetch(url).then(async (r) => {
-            if (r.ok) {
-              const fresh = await r.text();
-              await setChapterInCache(cacheKey, fresh);
-            }
-          }).catch(() => {});
+          fetch(url)
+            .then(async (r) => {
+              if (r.ok) {
+                const fresh = await r.text();
+                await setChapterInCache(cacheKey, fresh);
+              }
+            })
+            .catch(() => {});
         } else {
           const res = await fetch(url);
           if (!res.ok) throw new Error("Failed to load chapter.");
@@ -1016,7 +429,15 @@ export default function BookReaderClient({
     return () => {
       cancelled = true;
     };
-  }, [toc, currentChapter, bookId, SUPABASE_URL, isPreview, previewLimit]);
+  }, [
+    toc,
+    currentChapter,
+    bookId,
+    storageId,
+    isPreview,
+    previewLimit,
+    setOfflineBanner,
+  ]);
 
   // Restore scroll after chapter HTML paints
   useEffect(() => {
@@ -1029,51 +450,14 @@ export default function BookReaderClient({
       });
     }
     restoredOnce.current = true;
-  }, [loading, currentHtml, isPreview]);
-  // ── Flush progress on tab close / background ─────────────────────────────
-  // sendBeacon is reliable during unload; a normal fetch / server action is not.
-  // Skipped in preview mode and when not logged in (no server record to update).
-  useEffect(() => {
-    if (isPreview || itemType === "summary") return;
-
-    const flush = () => {
-      const payload = JSON.stringify({
-        bookId,
-        chapterIndex: chapterRef.current,
-        scrollOffset: Math.round(scrollOffsetRef.current),
-        timeSpent: timeSpentRef.current,
-      });
-      // Also update localStorage synchronously — doesn't need a network round-trip
-      writeLocalProgress(bookId, chapterRef.current, scrollOffsetRef.current);
-      // sendBeacon fires even after the page starts unloading
-      navigator.sendBeacon(
-        "/api/reader/save-progress",
-        new Blob([payload], { type: "application/json" }),
-      );
-    };
-
-    // pagehide is the most reliable unload event (covers mobile, back/forward cache)
-    const onPageHide = () => flush();
-    // visibilitychange catches tab switches to background on desktop
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") flush();
-    };
-
-    window.addEventListener("pagehide", onPageHide);
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => {
-      window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-    };
-  }, [bookId, isPreview, itemType]);
+  }, [loading, currentHtml, isPreview, pendingScrollRestore, scrollOffsetRef, restoredOnce]);
 
   // Scroll: throttled progress, auto-hide chrome, debounced save
-
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
       const now = Date.now();
-      
+
       // Throttle heavy state updates to 100ms
       if (now - lastScrollTime.current > 100) {
         const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
@@ -1081,7 +465,7 @@ export default function BookReaderClient({
         setScrollProgressPct(pct);
         lastScrollTime.current = now;
       }
-      
+
       scrollOffsetRef.current = y;
 
       if (!settingsOpen && !tocOpen && !paywallModalOpen) {
@@ -1110,10 +494,14 @@ export default function BookReaderClient({
   }, [
     tocOpen,
     paywallModalOpen,
+    settingsOpen,
     isPreview,
     initialLoadDone,
     bookId,
     saveProgress,
+    chapterRef,
+    scrollOffsetRef,
+    setChromeVisible,
   ]);
 
   // Preview CTA: show once reader scrolls ≥60% through the preview chapter
@@ -1138,40 +526,6 @@ export default function BookReaderClient({
       )
     : scrollProgressPct;
 
-  // Finish celebration: trigger when on last chapter and 90%+ scrolled
-  const celebrationFired = useRef(false);
-  useEffect(() => {
-    if (isPreview || !toc || loading || chaptersCount === 0) return;
-    if (currentChapter === chaptersCount - 1 && scrollProgressPct >= 90 && !celebrationFired.current) {
-      celebrationFired.current = true;
-      setShowCelebration(true);
-      import("canvas-confetti").then((mod) => {
-        const confetti = mod.default;
-        confetti({ particleCount: 140, spread: 80, origin: { y: 0.55 }, colors: ["#7A1F2B", "#C9962E", "#A78BFA", "#fff"] });
-        setTimeout(() => confetti({ particleCount: 60, spread: 55, origin: { y: 0.4 }, angle: 60 }), 400);
-        setTimeout(() => confetti({ particleCount: 60, spread: 55, origin: { y: 0.4 }, angle: 120 }), 400);
-      });
-    }
-  }, [isPreview, toc, loading, chaptersCount, currentChapter, scrollProgressPct]);
-
-
-  const goTo = (idx: number) => {
-    if (isPreview && idx > previewLimit) {
-      setPaywallModalOpen(true);
-      setTocOpen(false);
-      return;
-    }
-    
-    restoredOnce.current = true;
-    pendingScrollRestore.current = 0;
-    scrollOffsetRef.current = 0;
-    setResumeBanner(null);
-    setCurrentChapter(idx);
-    setTocOpen(false);
-    setChromeVisible(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "ArrowLeft" && currentChapter > 0) goTo(currentChapter - 1);
@@ -1189,7 +543,7 @@ export default function BookReaderClient({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentChapter, chaptersCount, isPreview]);
+  }, [currentChapter, chaptersCount, isPreview, goTo, setChromeVisible]);
 
   const forceShowChrome = () => {
     setChromeVisible(true);
@@ -1201,7 +555,8 @@ export default function BookReaderClient({
   }, []);
 
   const themeVars = THEME_STYLES[readerTheme];
-  const chromeOpen = chromeVisible || settingsOpen || tocOpen || annotationsOpen || paywallModalOpen;
+  const chromeOpen =
+    chromeVisible || settingsOpen || tocOpen || annotationsOpen || paywallModalOpen;
 
   if (!mounted) {
     return <div style={{ background: "#FFFFFF", minHeight: "100vh" }} />;
@@ -1221,7 +576,7 @@ export default function BookReaderClient({
       }}
     >
       {/* Mobile Floating Back Button (Visible when header is hidden) */}
-      <div 
+      <div
         className={`md:hidden fixed top-3 left-3 z-50 transition-opacity duration-300 ${!chromeOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
         <ReaderBackButton
@@ -1292,16 +647,13 @@ export default function BookReaderClient({
 
         {/* Right Side: All Controls (Never clipped, beautifully responsive) */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          
           {/* Theme Quick Switcher */}
           <div className="flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] p-0.5 shrink-0">
-            {(
-              [
-                { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Iftiin" },
-                { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Sepia" },
-                { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Habeen" },
-              ]
-            ).map((opt) => (
+            {[
+              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Iftiin" },
+              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Sepia" },
+              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Habeen" },
+            ].map((opt) => (
               <button
                 key={opt.id}
                 type="button"
@@ -1323,13 +675,11 @@ export default function BookReaderClient({
 
           {/* Desktop-only Font Family Toggles */}
           <div className="hidden lg:flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] p-0.5 shrink-0">
-            {(
-              [
-                { id: "serif" as FontFamily, label: "Serif" },
-                { id: "sans" as FontFamily, label: "Sans" },
-                { id: "dyslexia" as FontFamily, label: "Fudud", icon: <Eye className="w-3.5 h-3.5" /> },
-              ]
-            ).map((opt) => (
+            {[
+              { id: "serif" as FontFamily, label: "Serif" },
+              { id: "sans" as FontFamily, label: "Sans" },
+              { id: "dyslexia" as FontFamily, label: "Fudud", icon: <Eye className="w-3.5 h-3.5" /> },
+            ].map((opt) => (
               <button
                 key={opt.id}
                 type="button"
@@ -1428,7 +778,7 @@ export default function BookReaderClient({
           >
             <Highlighter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             <span className="hidden md:inline">Xusuus</span>
-            {(bookmarks.length + highlights.length) > 0 && (
+            {bookmarks.length + highlights.length > 0 && (
               <span
                 className="absolute -right-1 -top-1 min-w-[16px] rounded-full px-1 text-[9px] font-black leading-[16px] text-center"
                 style={{ background: "#C9962E", color: "#1A1208" }}
@@ -1455,7 +805,10 @@ export default function BookReaderClient({
               aria-label="Cutubyada"
               title="Cutubyada"
             >
-              <List className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: tocOpen ? "#fff" : "var(--reader-accent)" }} />
+              <List
+                className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                style={{ color: tocOpen ? "#fff" : "var(--reader-accent)" }}
+              />
               <span className="hidden md:inline">Cutubyada</span>
             </button>
           )}
@@ -1463,7 +816,10 @@ export default function BookReaderClient({
           {/* Search button */}
           <button
             type="button"
-            onClick={() => { forceShowChrome(); setSearchOpen((v) => !v); }}
+            onClick={() => {
+              forceShowChrome();
+              setSearchOpen((v) => !v);
+            }}
             style={{
               border: "1px solid var(--reader-border)",
               background: searchOpen ? "var(--reader-accent)" : "var(--reader-surface)",
@@ -1527,7 +883,12 @@ export default function BookReaderClient({
           className="px-4 py-2 text-xs font-semibold flex items-center justify-between"
         >
           <span>📶 Xog-warsaadka laaantii — waad akhrisan kartaa</span>
-          <button type="button" onClick={() => setOfflineBanner(false)} className="ml-2 opacity-70" aria-label="Xir">
+          <button
+            type="button"
+            onClick={() => setOfflineBanner(false)}
+            className="ml-2 opacity-70"
+            aria-label="Xir"
+          >
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -1633,7 +994,7 @@ export default function BookReaderClient({
           if (!touchStartX.current || !touchStartY.current) return;
           const deltaX = e.changedTouches[0].clientX - touchStartX.current;
           const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-          
+
           // Must be mostly horizontal swipe
           if (deltaY < 50 && Math.abs(deltaX) > 80) {
             if (deltaX > 0 && currentChapter > 0) goTo(currentChapter - 1); // Swipe right = prev
@@ -1742,7 +1103,10 @@ export default function BookReaderClient({
           >
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h3 className="font-display text-base sm:text-lg font-extrabold" style={{ color: "var(--reader-heading)" }}>
+                <h3
+                  className="font-display text-base sm:text-lg font-extrabold"
+                  style={{ color: "var(--reader-heading)" }}
+                >
                   Akhristayaashu waxay sidoo kale jeclaadeen
                 </h3>
                 <p className="text-xs mt-0.5" style={{ color: "var(--reader-muted)" }}>
@@ -1767,58 +1131,69 @@ export default function BookReaderClient({
         )}
 
         {/* Love this book? Soft Nudge for Owners (non-preview) */}
-        {!isPreview && !ownerNudgeDismissed && !loading && !contentError && hasContent && (timeSpentRef.current >= 600 || scrollProgressPct >= 85) && (
-          <div
-            className="mt-10 rounded-2xl border border-[var(--reader-border)] p-6 sm:p-7 relative transition-all shadow-sm"
-            style={{ background: "var(--reader-surface)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={dismissOwnerNudge}
-              className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--reader-border)] opacity-60 hover:opacity-100 transition-opacity"
-              style={{ color: "var(--reader-muted)" }}
-              title="Ka xidh"
+        {!isPreview &&
+          !ownerNudgeDismissed &&
+          !loading &&
+          !contentError &&
+          hasContent &&
+          (timeSpentRef.current >= 600 || scrollProgressPct >= 85) && (
+            <div
+              className="mt-10 rounded-2xl border border-[var(--reader-border)] p-6 sm:p-7 relative transition-all shadow-sm"
+              style={{ background: "var(--reader-surface)" }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-4 h-4" />
-            </button>
-            <div className="flex items-start gap-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#C9962E]/15 text-[#C9962E]">
-                <Sparkles className="h-5 w-5" />
-              </div>
-              <div>
-                <h4 className="font-display text-base font-extrabold" style={{ color: "var(--reader-heading)" }}>
-                  Miyaad ka heshay buuggan?
-                </h4>
-                <p className="mt-1 text-xs leading-relaxed max-w-lg" style={{ color: "var(--reader-muted)" }}>
-                  Waad ku mahadsan tahay akhriska! Maadaama aad buuggan leedahay, waad u hdiyayn kartaa saaxiib ama waxaad brawsarsan kartaa buugaagta kale ee maktabada.
-                </p>
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Link
-                    href={`/payment/${bookId}?isGift=true`}
-                    className="btn btn-primary btn-sm text-xs"
+              <button
+                type="button"
+                onClick={dismissOwnerNudge}
+                className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--reader-border)] opacity-60 hover:opacity-100 transition-opacity"
+                style={{ color: "var(--reader-muted)" }}
+                title="Ka xidh"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#C9962E]/15 text-[#C9962E]">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4
+                    className="font-display text-base font-extrabold"
+                    style={{ color: "var(--reader-heading)" }}
                   >
-                    🎁 U hdiyay Buuggan
-                  </Link>
-                  <Link
-                    href="/books"
-                    className="btn btn-secondary btn-sm text-xs"
+                    Miyaad ka heshay buuggan?
+                  </h4>
+                  <p
+                    className="mt-1 text-xs leading-relaxed max-w-lg"
+                    style={{ color: "var(--reader-muted)" }}
                   >
-                    <BookOpen className="h-3.5 w-3.5" />
-                    Brawsar Maktabada
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={dismissOwnerNudge}
-                    className="btn btn-ghost btn-sm text-xs opacity-75"
-                  >
-                    Ka xidh
-                  </button>
+                    Waad ku mahadsan tahay akhriska! Maadaama aad buuggan leedahay, waad u hdiyayn kartaa saaxiib ama waxaad brawsarsan kartaa buugaagta kale ee maktabada.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <Link
+                      href={`/payment/${bookId}?isGift=true`}
+                      className="btn btn-primary btn-sm text-xs"
+                    >
+                      🎁 U hdiyay Buuggan
+                    </Link>
+                    <Link
+                      href="/books"
+                      className="btn btn-secondary btn-sm text-xs"
+                    >
+                      <BookOpen className="h-3.5 w-3.5" />
+                      Brawsar Maktabada
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={dismissOwnerNudge}
+                      className="btn btn-ghost btn-sm text-xs opacity-75"
+                    >
+                      Ka xidh
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Preview CTA — only after reaching end */}
         {isPreview && currentChapter === previewLimit && !loading && showPreviewCta && (
@@ -1840,7 +1215,10 @@ export default function BookReaderClient({
                 <CreditCard className="h-4 w-4" />
                 Iibso Buugga Hadda
               </Link>
-              <Link href={`/payment/${bookId}?isGift=true`} className="btn btn-secondary btn-block sm:w-auto">
+              <Link
+                href={`/payment/${bookId}?isGift=true`}
+                className="btn btn-secondary btn-block sm:w-auto"
+              >
                 🎁 U hdiyay Saaxiib
               </Link>
               <Link
@@ -1863,10 +1241,16 @@ export default function BookReaderClient({
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-[#C9962E] to-[#EAB308] text-white shadow-inner">
               <PartyPopper className="h-7 w-7" />
             </div>
-            <h3 className="font-display text-xl font-extrabold" style={{ color: "var(--reader-heading)" }}>
+            <h3
+              className="font-display text-xl font-extrabold"
+              style={{ color: "var(--reader-heading)" }}
+            >
               Hambalyo!
             </h3>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed" style={{ color: "var(--reader-muted)" }}>
+            <p
+              className="mx-auto mt-2 max-w-sm text-sm leading-relaxed"
+              style={{ color: "var(--reader-muted)" }}
+            >
               Waad dhammaystirtay akhriska buuggan. Horumar wacan!
             </p>
             <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -1874,7 +1258,11 @@ export default function BookReaderClient({
                 type="button"
                 onClick={() => {
                   if (navigator.share) {
-                    navigator.share({ title: "IsmailBooks", text: `Waxaan dhammaystay akhriska: ${bookTitle}!`, url: window.location.href });
+                    navigator.share({
+                      title: "IsmailBooks",
+                      text: `Waxaan dhammaystay akhriska: ${bookTitle}!`,
+                      url: window.location.href,
+                    });
                   }
                 }}
                 className="btn btn-secondary btn-block sm:w-auto font-bold px-6 h-12"
@@ -1882,13 +1270,15 @@ export default function BookReaderClient({
                 <Sparkles className="h-4 w-4 mr-1.5" />
                 La wadaag
               </button>
-              <Link href="/books" className="btn btn-primary btn-block sm:w-auto font-bold px-6 h-12">
+              <Link
+                href="/books"
+                className="btn btn-primary btn-block sm:w-auto font-bold px-6 h-12"
+              >
                 Buug kale eeg
               </Link>
             </div>
           </div>
         )}
-
       </main>
 
       {/* Bottom dock */}
@@ -2022,15 +1412,24 @@ export default function BookReaderClient({
                     onClick={() => goTo(idx)}
                     style={{
                       background: isCurrent ? "var(--reader-surface)" : "transparent",
-                      border: isCurrent ? "1px solid var(--reader-border)" : "1px solid transparent",
-                      color: isCurrent ? "var(--reader-heading)" : "var(--reader-body)",
+                      border: isCurrent
+                        ? "1px solid var(--reader-border)"
+                        : "1px solid transparent",
+                      color: isCurrent
+                        ? "var(--reader-heading)"
+                        : "var(--reader-body)",
                       opacity: isLocked ? 0.6 : 1,
                     }}
                     className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between group hover:bg-[var(--reader-surface)] transition-colors`}
                   >
                     <div className="flex items-center gap-2 min-w-0 pr-3">
                       <div
-                        style={{ background: isCurrent ? "var(--reader-accent)" : "transparent", color: isCurrent ? "#fff" : "var(--reader-muted)" }}
+                        style={{
+                          background: isCurrent
+                            ? "var(--reader-accent)"
+                            : "transparent",
+                          color: isCurrent ? "#fff" : "var(--reader-muted)",
+                        }}
                         className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-extrabold shrink-0"
                       >
                         {idx + 1}
@@ -2044,7 +1443,9 @@ export default function BookReaderClient({
                     {isLocked ? (
                       <Lock className="w-4 h-4 shrink-0 text-amber-500" />
                     ) : (
-                      idx < currentChapter && <Check className="w-4 h-4 shrink-0 text-emerald-500" />
+                      idx < currentChapter && (
+                        <Check className="w-4 h-4 shrink-0 text-emerald-500" />
+                      )
                     )}
                   </button>
                 );
