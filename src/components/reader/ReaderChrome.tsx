@@ -174,14 +174,14 @@ export default function ReaderChrome({
           </div>
         </div>
 
-        {/* Right Side: All Controls (Never clipped, beautifully responsive) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        {/* Right Side: All Controls — compact on mobile, full-size on desktop */}
+        <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
           {/* Theme Quick Switcher */}
           <div className="flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] p-0.5 shrink-0">
             {[
-              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Iftiin" },
-              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Sepia" },
-              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Habeen" },
+              { id: "light" as ReaderTheme, icon: <Sun className="w-3 h-3 sm:w-4 sm:h-4" />, title: "Iftiin" },
+              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3 h-3 sm:w-4 sm:h-4" />, title: "Sepia" },
+              { id: "night" as ReaderTheme, icon: <Moon className="w-3 h-3 sm:w-4 sm:h-4" />, title: "Habeen" },
             ].map((opt) => (
               <button
                 key={opt.id}
@@ -191,10 +191,10 @@ export default function ReaderChrome({
                 style={{
                   background: readerTheme === opt.id ? "var(--reader-accent)" : "transparent",
                   color: readerTheme === opt.id ? "#fff" : "var(--reader-muted)",
-                  minWidth: 28,
-                  minHeight: 32,
+                  minWidth: 20,
+                  minHeight: 26,
                 }}
-                className="rounded-[9px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center transition-colors"
+                className="rounded-[8px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center transition-colors"
                 aria-label={opt.title}
               >
                 {opt.icon}
@@ -232,23 +232,23 @@ export default function ReaderChrome({
             <button
               type="button"
               onClick={() => changeFontSize(-2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
+              className="w-5 h-[26px] sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
               title="Yaree xarfaha"
               aria-label="Yaree xarfaha"
             >
-              <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
-            <span className="text-[11px] sm:text-[12px] font-mono font-bold text-[var(--reader-accent)] min-w-[20px] sm:min-w-[28px] text-center">
+            <span className="text-[10px] sm:text-[12px] font-mono font-bold text-[var(--reader-accent)] min-w-[14px] sm:min-w-[28px] text-center">
               {fontSize}
             </span>
             <button
               type="button"
               onClick={() => changeFontSize(2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
+              className="w-5 h-[26px] sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
               title="Kordhi xarfaha"
               aria-label="Kordhi xarfaha"
             >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
             </button>
           </div>
 
@@ -261,14 +261,14 @@ export default function ReaderChrome({
               background: isFullscreen ? "var(--reader-accent)" : "var(--reader-surface)",
               color: isFullscreen ? "#fff" : "var(--reader-muted)",
             }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
+            className="w-[26px] h-[26px] sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
             title={isFullscreen ? "Ka bax shaashadda buuxda" : "Shaashad buuxda"}
             aria-label="Shaashad buuxda"
           >
             {isFullscreen ? (
-              <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Minimize className="w-3 h-3 sm:w-4 sm:h-4" />
             ) : (
-              <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Maximize className="w-3 h-3 sm:w-4 sm:h-4" />
             )}
           </button>
 
@@ -281,11 +281,11 @@ export default function ReaderChrome({
               background: isBookmarked ? "rgba(201, 150, 46, 0.16)" : "var(--reader-surface)",
               color: isBookmarked ? "#C9962E" : "var(--reader-muted)",
             }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
+            className="w-[26px] h-[26px] sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
             title={isBookmarked ? "Ka saar calaamadda" : "Calaamadee goobtan"}
             aria-label="Calaamad"
           >
-            <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isBookmarked ? "fill-current" : ""}`} />
+            <Bookmark className={`w-3 h-3 sm:w-4 sm:h-4 ${isBookmarked ? "fill-current" : ""}`} />
           </button>
 
           {/* Annotations (bookmarks + highlights list) */}
@@ -297,15 +297,15 @@ export default function ReaderChrome({
               background: annotationsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
               color: annotationsOpen ? "#fff" : "var(--reader-heading)",
             }}
-            className="relative h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
+            className="relative w-[26px] h-[26px] sm:h-11 sm:px-2.5 sm:w-auto inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
             aria-label="Xusuus-qorkaaga"
             title="Calaamadaha & xushayaasha"
           >
-            <Highlighter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Highlighter className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden md:inline">Xusuus</span>
             {bookmarksCount + highlightsCount > 0 && (
               <span
-                className="absolute -right-1 -top-1 min-w-[16px] rounded-full px-1 text-[9px] font-black leading-[16px] text-center"
+                className="absolute -right-1 -top-1 min-w-[14px] rounded-full px-0.5 text-[8px] font-black leading-[14px] text-center"
                 style={{ background: "#C9962E", color: "#1A1208" }}
               >
                 {bookmarksCount + highlightsCount}
@@ -323,12 +323,12 @@ export default function ReaderChrome({
                 background: tocOpen ? "var(--reader-accent)" : "var(--reader-surface)",
                 color: tocOpen ? "#fff" : "var(--reader-heading)",
               }}
-              className="h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
+              className="w-[26px] h-[26px] sm:h-11 sm:px-2.5 sm:w-auto inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
               aria-label="Cutubyada"
               title="Cutubyada"
             >
               <List
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                className="w-3 h-3 sm:w-4 sm:h-4"
                 style={{ color: tocOpen ? "#fff" : "var(--reader-accent)" }}
               />
               <span className="hidden md:inline">Cutubyada</span>
@@ -344,11 +344,11 @@ export default function ReaderChrome({
               background: searchOpen ? "var(--reader-accent)" : "var(--reader-surface)",
               color: searchOpen ? "#fff" : "var(--reader-muted)",
             }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
+            className="w-[26px] h-[26px] sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
             aria-label="Raadi"
             title="Raadi"
           >
-            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Search className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
 
           {/* Settings button */}
@@ -360,14 +360,14 @@ export default function ReaderChrome({
               background: settingsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
               color: settingsOpen ? "#fff" : "var(--reader-heading)",
             }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
+            className="w-[26px] h-[26px] sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
             aria-label="Dejinta"
             title="Dejinta"
           >
-            <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <Settings2 className="w-3 h-3 sm:w-4 sm:h-4" />
           </button>
 
-          {/* Streak chip — shown when ≥2 days */}
+          {/* Streak chip — shown when ≥2 days (desktop only to save mobile space) */}
           {!isPreview && streakDays >= 2 && (
             <span
               style={{
@@ -382,7 +382,7 @@ export default function ReaderChrome({
                 gap: 2,
                 userSelect: "none",
               }}
-              className="shrink-0 hidden xs:inline-flex"
+              className="shrink-0 hidden sm:inline-flex"
               title={`${streakDays} maalmood oo xiriir ah`}
             >
               <Flame className="w-2.5 h-2.5" />
@@ -390,6 +390,7 @@ export default function ReaderChrome({
             </span>
           )}
         </div>
+
       </header>
 
       {/* Progress */}
