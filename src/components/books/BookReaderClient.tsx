@@ -1,47 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import Link from "next/link";
 import { get as idbGet, set as idbSet } from "idb-keyval";
 import { useSession } from "next-auth/react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  ChevronLeft,
-  ChevronRight,
-  List,
-  X,
-  BookOpen,
-  Lock,
-  CreditCard,
-  Sparkles,
-  Bookmark,
-  Check,
-  Search,
-  Flame,
-  PartyPopper,
-  Sun,
-  Moon,
-  Eye,
-  Minus,
-  Plus,
-  Settings2,
-  Maximize,
-  Minimize,
-  Highlighter,
-} from "lucide-react";
-
 import dynamic from "next/dynamic";
-import ReaderBackButton from "@/components/reader/ReaderBackButton";
-import type {
-  ReaderTheme,
-  FontFamily,
-} from "@/components/reader/ReaderSettingsSheet";
-import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
-import { BookCard, type BookCardData } from "@/components/books/BookCard";
+import { type BookCardData } from "@/components/books/BookCard";
 import {
   useReaderPrefs,
   THEME_STYLES,
-  FONT_CLASSES,
   LINE_HEIGHT,
 } from "@/hooks/useReaderPrefs";
 import {
@@ -51,6 +18,20 @@ import {
 } from "@/hooks/useReaderProgress";
 import { useAnnotations } from "@/hooks/useAnnotations";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
+
+import ReaderChrome from "@/components/reader/ReaderChrome";
+import ReaderContent from "@/components/reader/ReaderContent";
+import {
+  ReaderOfflineBanner,
+  ReaderResumeBanner,
+  ReaderOwnerNudge,
+} from "@/components/reader/ReaderBanners";
+import {
+  ReaderPreviewCta,
+  ReaderPaywallModal,
+} from "@/components/reader/ReaderPaywall";
+import ReaderCelebration from "@/components/reader/ReaderCelebration";
 
 const ReaderSearchBar = dynamic(
   () => import("@/components/reader/ReaderSearchBar"),
@@ -190,10 +171,6 @@ export default function BookReaderClient({
   const [ownerNudgeDismissed, setOwnerNudgeDismissed] = useState(false);
 
   // Content fetching & scroll state
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const lastScrollTime = useRef(0);
-
   const [toc, setToc] = useState<TocItem[] | null>(null);
   const [currentHtml, setCurrentHtml] = useState("");
   const [loading, setLoading] = useState(true);
@@ -201,6 +178,7 @@ export default function BookReaderClient({
   const [hasContent, setHasContent] = useState(true);
   const [scrollProgressPct, setScrollProgressPct] = useState(0);
   const lastScrollY = useRef(0);
+  const lastScrollTime = useRef(0);
   const saveScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endSentinelRef = useRef<HTMLDivElement | null>(null);
 
@@ -575,326 +553,63 @@ export default function BookReaderClient({
         ["--reader-line-height" as string]: String(LINE_HEIGHT[lineSpacing]),
       }}
     >
-      {/* Mobile Floating Back Button (Visible when header is hidden) */}
-      <div
-        className={`md:hidden fixed top-3 left-3 z-50 transition-opacity duration-300 ${!chromeOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-      >
-        <ReaderBackButton
-          returnTarget={returnTarget || `/books/${bookId}`}
-          className="shadow-md bg-white/90 backdrop-blur-sm !min-w-[40px] !min-h-[40px] !p-2 !justify-center !rounded-full border border-gray-200"
-          label=""
-        />
-      </div>
-
-      {/* Chapter change announcer for screen readers */}
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="sr-only"
-      >
-        {chapterTitle ? `Cutub ${currentChapter + 1}: ${chapterTitle}` : ""}
-      </div>
-
-      {/* Header */}
-      <header
-        style={{
-          background: "var(--reader-bg)",
-          borderBottom: "1px solid var(--reader-border)",
-          transform: chromeOpen ? "translateY(0)" : "translateY(-110%)",
-          transition: prefersReducedMotion.current ? "none" : "transform 0.25s ease",
+      <ReaderChrome
+        bookId={bookId}
+        bookTitle={bookTitle}
+        bookAuthor={bookAuthor}
+        returnTarget={returnTarget}
+        isPreview={isPreview}
+        chapterTitle={chapterTitle}
+        currentChapter={currentChapter}
+        chaptersCount={chaptersCount}
+        blendedPct={blendedPct}
+        chromeOpen={chromeOpen}
+        prefersReducedMotion={prefersReducedMotion.current}
+        readerTheme={readerTheme}
+        fontFamily={fontFamily}
+        fontSize={fontSize}
+        isFullscreen={isFullscreen}
+        isBookmarked={isBookmarked}
+        annotationsOpen={annotationsOpen}
+        bookmarksCount={bookmarks.length}
+        highlightsCount={highlights.length}
+        tocOpen={tocOpen}
+        searchOpen={searchOpen}
+        settingsOpen={settingsOpen}
+        streakDays={streakDays}
+        previewLimit={previewLimit}
+        toc={toc}
+        changeTheme={changeTheme}
+        changeFontFamily={changeFontFamily}
+        changeFontSize={changeFontSize}
+        toggleFullscreen={toggleFullscreen}
+        toggleBookmark={toggleBookmark}
+        onOpenAnnotations={() => {
+          forceShowChrome();
+          setAnnotationsTab(highlights.length > bookmarks.length ? "highlights" : "bookmarks");
+          setAnnotationsOpen(true);
         }}
-        className="sticky top-0 z-40 px-2 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-1 sm:gap-2"
-      >
-        {/* Left Side: Back button + Title */}
-        <div className="flex items-center gap-1 sm:gap-2 min-w-0 shrink">
-          <ReaderBackButton
-            returnTarget={returnTarget || `/books/${bookId}`}
-            className="!min-w-[36px] !min-h-[36px] sm:!min-w-[44px] sm:!min-h-[44px] !justify-center shrink-0"
-          />
-          <div className="min-w-0 hidden md:block">
-            <div className="flex items-center gap-1.5">
-              <h1
-                style={{ color: "var(--reader-heading)" }}
-                className="font-display text-xs sm:text-sm font-extrabold truncate max-w-[120px] sm:max-w-xs"
-              >
-                {bookTitle}
-              </h1>
-              {isPreview && (
-                <span className="shrink-0 rounded-full bg-[#C9962E]/20 text-[#C9962E] border border-[#C9962E]/40 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-extrabold uppercase">
-                  Tijaabo
-                </span>
-              )}
-            </div>
-            {chapterTitle && (
-              <p
-                style={{ color: "var(--reader-muted)" }}
-                className="text-[10px] sm:text-[11px] truncate max-w-[140px] sm:max-w-xs"
-              >
-                {chapterTitle}
-              </p>
-            )}
-            {bookAuthor && (
-              <p
-                style={{ color: "var(--reader-muted)" }}
-                className="text-[9px] sm:text-[10px] truncate max-w-[140px] sm:max-w-xs"
-              >
-                {bookAuthor}
-              </p>
-            )}
-          </div>
-        </div>
+        onOpenToc={() => {
+          forceShowChrome();
+          setTocOpen(true);
+        }}
+        onToggleSearch={() => {
+          forceShowChrome();
+          setSearchOpen((v) => !v);
+        }}
+        onOpenSettings={() => {
+          forceShowChrome();
+          setSettingsOpen(true);
+        }}
+        onCloseToc={() => setTocOpen(false)}
+        goTo={goTo}
+      />
 
-        {/* Right Side: All Controls (Never clipped, beautifully responsive) */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-          {/* Theme Quick Switcher */}
-          <div className="flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] p-0.5 shrink-0">
-            {[
-              { id: "light" as ReaderTheme, icon: <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Iftiin" },
-              { id: "sepia" as ReaderTheme, icon: <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Sepia" },
-              { id: "night" as ReaderTheme, icon: <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />, title: "Habeen" },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => changeTheme(opt.id)}
-                title={opt.title}
-                style={{
-                  background: readerTheme === opt.id ? "var(--reader-accent)" : "transparent",
-                  color: readerTheme === opt.id ? "#fff" : "var(--reader-muted)",
-                  minWidth: 28,
-                  minHeight: 32,
-                }}
-                className="rounded-[9px] sm:min-w-[36px] sm:min-h-[36px] flex items-center justify-center transition-colors"
-                aria-label={opt.title}
-              >
-                {opt.icon}
-              </button>
-            ))}
-          </div>
+      <ReaderOfflineBanner
+        show={offlineBanner}
+        onClose={() => setOfflineBanner(false)}
+      />
 
-          {/* Desktop-only Font Family Toggles */}
-          <div className="hidden lg:flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] p-0.5 shrink-0">
-            {[
-              { id: "serif" as FontFamily, label: "Serif" },
-              { id: "sans" as FontFamily, label: "Sans" },
-              { id: "dyslexia" as FontFamily, label: "Fudud", icon: <Eye className="w-3.5 h-3.5" /> },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => changeFontFamily(opt.id)}
-                style={{
-                  background: fontFamily === opt.id ? "var(--reader-accent)" : "transparent",
-                  color: fontFamily === opt.id ? "#fff" : "var(--reader-muted)",
-                  minWidth: 44,
-                  minHeight: 36,
-                }}
-                className="rounded-[10px] flex items-center justify-center gap-1 px-1.5 text-[10px] font-bold uppercase transition-colors"
-              >
-                {opt.icon}
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Font Size Stepper */}
-          <div className="flex items-center bg-[var(--reader-surface)] rounded-xl border border-[var(--reader-border)] shrink-0">
-            <button
-              type="button"
-              onClick={() => changeFontSize(-2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
-              title="Yaree xarfaha"
-              aria-label="Yaree xarfaha"
-            >
-              <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-            <span className="text-[11px] sm:text-[12px] font-mono font-bold text-[var(--reader-accent)] min-w-[20px] sm:min-w-[28px] text-center">
-              {fontSize}
-            </span>
-            <button
-              type="button"
-              onClick={() => changeFontSize(2)}
-              className="w-7 h-8 sm:w-9 sm:h-9 flex items-center justify-center hover:opacity-70 text-[var(--reader-muted)]"
-              title="Kordhi xarfaha"
-              aria-label="Kordhi xarfaha"
-            >
-              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-
-          {/* Fullscreen Toggle */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: isFullscreen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: isFullscreen ? "#fff" : "var(--reader-muted)",
-            }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            title={isFullscreen ? "Ka bax shaashadda buuxda" : "Shaashad buuxda"}
-            aria-label="Shaashad buuxda"
-          >
-            {isFullscreen ? (
-              <Minimize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            ) : (
-              <Maximize className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            )}
-          </button>
-
-          {/* Bookmark current spot */}
-          <button
-            type="button"
-            onClick={toggleBookmark}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: isBookmarked ? "rgba(201, 150, 46, 0.16)" : "var(--reader-surface)",
-              color: isBookmarked ? "#C9962E" : "var(--reader-muted)",
-            }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            title={isBookmarked ? "Ka saar calaamadda" : "Calaamadee goobtan"}
-            aria-label="Calaamad"
-          >
-            <Bookmark className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isBookmarked ? "fill-current" : ""}`} />
-          </button>
-
-          {/* Annotations (bookmarks + highlights list) */}
-          <button
-            type="button"
-            onClick={() => {
-              forceShowChrome();
-              setAnnotationsTab(highlights.length > bookmarks.length ? "highlights" : "bookmarks");
-              setAnnotationsOpen(true);
-            }}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: annotationsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: annotationsOpen ? "#fff" : "var(--reader-heading)",
-            }}
-            className="relative h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
-            aria-label="Xusuus-qorkaaga"
-            title="Calaamadaha & xushayaasha"
-          >
-            <Highlighter className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden md:inline">Xusuus</span>
-            {bookmarks.length + highlights.length > 0 && (
-              <span
-                className="absolute -right-1 -top-1 min-w-[16px] rounded-full px-1 text-[9px] font-black leading-[16px] text-center"
-                style={{ background: "#C9962E", color: "#1A1208" }}
-              >
-                {bookmarks.length + highlights.length}
-              </span>
-            )}
-          </button>
-
-          {/* Chapters (TOC) button */}
-          {chaptersCount > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                forceShowChrome();
-                setTocOpen(true);
-              }}
-              style={{
-                border: "1px solid var(--reader-border)",
-                background: tocOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-                color: tocOpen ? "#fff" : "var(--reader-heading)",
-              }}
-              className="h-8 sm:h-11 px-2 sm:px-2.5 inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold shrink-0"
-              aria-label="Cutubyada"
-              title="Cutubyada"
-            >
-              <List
-                className="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                style={{ color: tocOpen ? "#fff" : "var(--reader-accent)" }}
-              />
-              <span className="hidden md:inline">Cutubyada</span>
-            </button>
-          )}
-
-          {/* Search button */}
-          <button
-            type="button"
-            onClick={() => {
-              forceShowChrome();
-              setSearchOpen((v) => !v);
-            }}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: searchOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: searchOpen ? "#fff" : "var(--reader-muted)",
-            }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            aria-label="Raadi"
-            title="Raadi"
-          >
-            <Search className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-
-          {/* Settings button (opens full drawer with font family, line spacing, etc.) */}
-          <button
-            type="button"
-            onClick={() => {
-              forceShowChrome();
-              setSettingsOpen(true);
-            }}
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: settingsOpen ? "var(--reader-accent)" : "var(--reader-surface)",
-              color: settingsOpen ? "#fff" : "var(--reader-heading)",
-            }}
-            className="w-8 h-8 sm:w-11 sm:h-11 inline-flex items-center justify-center rounded-xl shrink-0"
-            aria-label="Dejinta"
-            title="Dejinta"
-          >
-            <Settings2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-
-          {/* Streak chip — shown when ≥2 days */}
-          {!isPreview && streakDays >= 2 && (
-            <span
-              style={{
-                background: "linear-gradient(135deg, #EA580C 0%, #EAB308 100%)",
-                color: "#fff",
-                fontSize: 10,
-                fontWeight: 800,
-                padding: "0.15rem 0.45rem",
-                borderRadius: 999,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 2,
-                userSelect: "none",
-              }}
-              className="shrink-0 hidden xs:inline-flex"
-              title={`${streakDays} maalmood oo xiriir ah`}
-            >
-              <Flame className="w-2.5 h-2.5" />
-              {streakDays}
-            </span>
-          )}
-        </div>
-      </header>
-
-      {/* Offline banner */}
-      {offlineBanner && (
-        <div
-          style={{ background: "#92400E", color: "#FEF3C7" }}
-          className="px-4 py-2 text-xs font-semibold flex items-center justify-between"
-        >
-          <span>📶 Xog-warsaadka laaantii — waad akhrisan kartaa</span>
-          <button
-            type="button"
-            onClick={() => setOfflineBanner(false)}
-            className="ml-2 opacity-70"
-            aria-label="Xir"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* In-book search bar */}
       <ReaderSearchBar
         open={searchOpen}
         onClose={() => setSearchOpen(false)}
@@ -914,6 +629,7 @@ export default function BookReaderClient({
         onDeleteBookmark={removeBookmark}
         onDeleteHighlight={removeHighlight}
       />
+
       <HighlightToolbar
         contentRef={contentRef}
         enabled={!annotationsOpen && !settingsOpen && !tocOpen && !searchOpen}
@@ -921,435 +637,66 @@ export default function BookReaderClient({
         onBookmark={createBookmarkFromText}
       />
 
-      {/* Progress */}
-      {chaptersCount > 0 && (
-        <div
-          style={{
-            background: "var(--reader-border)",
-            opacity: chromeOpen ? 1 : 0.35,
-          }}
-          className="sticky top-0 z-30 w-full h-1"
-        >
-          <div
-            style={{
-              background: "var(--reader-accent)",
-              width: `${Math.max(blendedPct, 2)}%`,
-              transition: prefersReducedMotion.current ? "none" : "width 300ms ease",
-            }}
-            className="h-1"
-          />
-        </div>
-      )}
+      <ReaderResumeBanner
+        resumeBanner={resumeBanner}
+        isPreview={isPreview}
+        chapterTitle={chapterTitle}
+        onResume={() => {
+          window.scrollTo({
+            top: pendingScrollRestore.current || scrollOffsetRef.current,
+            behavior: "smooth",
+          });
+          setResumeBanner(null);
+        }}
+        onClose={() => setResumeBanner(null)}
+      />
 
-      {resumeBanner && !isPreview && (
-        <div
-          style={{
-            background: "var(--reader-surface)",
-            borderBottom: "1px solid var(--reader-border)",
-          }}
-          className="px-4 py-2.5 flex items-center justify-between gap-3 text-sm"
-        >
-          <p style={{ color: "var(--reader-body)" }} className="text-xs font-semibold m-0">
-            Sii wad · Cutub {resumeBanner.chapter + 1}
-            {chapterTitle ? ` · ${chapterTitle}` : ""}
-          </p>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                window.scrollTo({
-                  top: pendingScrollRestore.current || scrollOffsetRef.current,
-                  behavior: "smooth",
-                });
-                setResumeBanner(null);
-              }}
-              style={{ background: "var(--reader-accent)", color: "#fff", minHeight: 36 }}
-              className="px-3 rounded-lg text-xs font-bold"
-            >
-              Sii wad
-            </button>
-            <button
-              type="button"
-              onClick={() => setResumeBanner(null)}
-              style={{ color: "var(--reader-muted)", minWidth: 36, minHeight: 36 }}
-              className="inline-flex items-center justify-center"
-              aria-label="Xir"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      <main
-        className="flex-grow max-w-[720px] mx-auto px-4 sm:px-8 py-6 sm:py-12 w-full"
-        onClick={() => {
+      <ReaderContent
+        contentRef={contentRef}
+        endSentinelRef={endSentinelRef}
+        bookId={bookId}
+        fontFamily={fontFamily}
+        fontSize={fontSize}
+        currentHtml={currentHtml}
+        searchHighlightedHtml={searchHighlightedHtml}
+        annotatedHtml={annotatedHtml}
+        loading={loading}
+        hasContent={hasContent}
+        contentError={contentError}
+        relatedBooks={relatedBooks}
+        currentChapter={currentChapter}
+        chaptersCount={chaptersCount}
+        goTo={goTo}
+        onToggleChrome={() => {
           if (!settingsOpen && !tocOpen && !annotationsOpen) setChromeVisible((v) => !v);
         }}
-        onTouchStart={(e) => {
-          touchStartX.current = e.touches[0].clientX;
-          touchStartY.current = e.touches[0].clientY;
-        }}
-        onTouchEnd={(e) => {
-          if (!touchStartX.current || !touchStartY.current) return;
-          const deltaX = e.changedTouches[0].clientX - touchStartX.current;
-          const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
-
-          // Must be mostly horizontal swipe
-          if (deltaY < 50 && Math.abs(deltaX) > 80) {
-            if (deltaX > 0 && currentChapter > 0) goTo(currentChapter - 1); // Swipe right = prev
-            else if (deltaX < 0 && currentChapter < chaptersCount - 1) goTo(currentChapter + 1); // Swipe left = next
-          }
-          touchStartX.current = null;
-          touchStartY.current = null;
-        }}
       >
-        {!hasContent && !loading && (
-          <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-            <div
-              style={{
-                background: "var(--reader-surface)",
-                border: "1px solid var(--reader-border)",
-              }}
-              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-            >
-              <BookOpen className="w-8 h-8" style={{ color: "var(--reader-accent)" }} />
-            </div>
-            <h2
-              style={{ color: "var(--reader-heading)" }}
-              className="font-display text-xl font-extrabold"
-            >
-              Nuxurka buugga wali lama keenin
-            </h2>
-            <Link
-              href={`/books/${bookId}`}
-              style={{ background: "var(--reader-accent)", color: "#fff" }}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold"
-            >
-              ← Ku noqo Buugga
-            </Link>
-          </div>
-        )}
+        <ReaderOwnerNudge
+          bookId={bookId}
+          isPreview={isPreview}
+          dismissed={ownerNudgeDismissed}
+          loading={loading}
+          contentError={contentError}
+          hasContent={hasContent}
+          timeSpent={timeSpentRef.current}
+          scrollProgressPct={scrollProgressPct}
+          onDismiss={dismissOwnerNudge}
+        />
 
-        {loading && hasContent && (
-          <div className="space-y-4 py-6 animate-pulse" aria-busy="true">
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-8 w-2/3 rounded-lg"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-4 w-full rounded"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-4 w-[92%] rounded"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-4 w-[88%] rounded"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-4 w-full rounded"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-4 w-[70%] rounded"
-            />
-            <div
-              style={{ background: "var(--reader-border)" }}
-              className="h-40 w-full rounded-xl mt-6"
-            />
-            <p
-              style={{ color: "var(--reader-muted)" }}
-              className="text-sm font-bold text-center pt-4"
-            >
-              Diyaarinta cutubka...
-            </p>
-          </div>
-        )}
+        <ReaderPreviewCta
+          bookId={bookId}
+          isPreview={isPreview}
+          currentChapter={currentChapter}
+          previewLimit={previewLimit}
+          loading={loading}
+          showPreviewCta={showPreviewCta}
+        />
 
-        {contentError && (
-          <div className="text-center py-16">
-            <p className="text-red-500 font-bold mb-2">Qalad ayaa dhacay</p>
-            <p style={{ color: "var(--reader-muted)" }} className="text-sm">
-              {contentError}
-            </p>
-          </div>
-        )}
-
-        {!loading && !contentError && hasContent && currentHtml && (
-          <article
-            ref={contentRef}
-            lang="so"
-            className={FONT_CLASSES[fontFamily]}
-            style={{ fontSize: `${fontSize}px` }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="reader-prose"
-              dangerouslySetInnerHTML={{ __html: searchHighlightedHtml || annotatedHtml }}
-            />
-            <div ref={endSentinelRef} className="h-4 w-full" aria-hidden />
-          </article>
-        )}
-
-        {/* Related Books Strip — inline after chapter finishes */}
-        {!loading && !contentError && hasContent && relatedBooks && relatedBooks.length > 0 && (
-          <div
-            className="mt-14 pt-8 border-t border-[var(--reader-border)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3
-                  className="font-display text-base sm:text-lg font-extrabold"
-                  style={{ color: "var(--reader-heading)" }}
-                >
-                  Akhristayaashu waxay sidoo kale jeclaadeen
-                </h3>
-                <p className="text-xs mt-0.5" style={{ color: "var(--reader-muted)" }}>
-                  Buugaag kale oo xioso leh oo aad ka heli karto maktabada
-                </p>
-              </div>
-              <Link
-                href="/books"
-                className="text-xs font-bold hover:underline flex items-center gap-1 shrink-0 ml-2"
-                style={{ color: "var(--reader-accent)" }}
-              >
-                Dhammaan →
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {relatedBooks.map((b) => (
-                <BookCard key={b.id} book={b} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Love this book? Soft Nudge for Owners (non-preview) */}
-        {!isPreview &&
-          !ownerNudgeDismissed &&
-          !loading &&
-          !contentError &&
-          hasContent &&
-          (timeSpentRef.current >= 600 || scrollProgressPct >= 85) && (
-            <div
-              className="mt-10 rounded-2xl border border-[var(--reader-border)] p-6 sm:p-7 relative transition-all shadow-sm"
-              style={{ background: "var(--reader-surface)" }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={dismissOwnerNudge}
-                className="absolute top-4 right-4 p-1.5 rounded-lg border border-[var(--reader-border)] opacity-60 hover:opacity-100 transition-opacity"
-                style={{ color: "var(--reader-muted)" }}
-                title="Ka xidh"
-              >
-                <X className="w-4 h-4" />
-              </button>
-              <div className="flex items-start gap-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#C9962E]/15 text-[#C9962E]">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <h4
-                    className="font-display text-base font-extrabold"
-                    style={{ color: "var(--reader-heading)" }}
-                  >
-                    Miyaad ka heshay buuggan?
-                  </h4>
-                  <p
-                    className="mt-1 text-xs leading-relaxed max-w-lg"
-                    style={{ color: "var(--reader-muted)" }}
-                  >
-                    Waad ku mahadsan tahay akhriska! Maadaama aad buuggan leedahay, waad u hdiyayn kartaa saaxiib ama waxaad brawsarsan kartaa buugaagta kale ee maktabada.
-                  </p>
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <Link
-                      href={`/payment/${bookId}?isGift=true`}
-                      className="btn btn-primary btn-sm text-xs"
-                    >
-                      🎁 U hdiyay Buuggan
-                    </Link>
-                    <Link
-                      href="/books"
-                      className="btn btn-secondary btn-sm text-xs"
-                    >
-                      <BookOpen className="h-3.5 w-3.5" />
-                      Brawsar Maktabada
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={dismissOwnerNudge}
-                      className="btn btn-ghost btn-sm text-xs opacity-75"
-                    >
-                      Ka xidh
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-        {/* Preview CTA — only after reaching end */}
-        {isPreview && currentChapter === previewLimit && !loading && showPreviewCta && (
-          <div
-            className="mt-10 rounded-2xl border border-[#C9962E]/40 bg-[#FBF7F0] p-6 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-[#C9962E]/20 text-[#C9962E]">
-              <Lock className="h-6 w-6" />
-            </div>
-            <h3 className="font-display text-lg font-extrabold text-[#201B16]">
-              Qeybta tijaabada waa dhammaatay
-            </h3>
-            <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-[#6B5F52]">
-              Si aad u akhriso dhammaan cutubyada kale, iibso buuggan hadda.
-            </p>
-            <div className="mt-5 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link href={`/payment/${bookId}`} className="btn btn-primary btn-block sm:w-auto">
-                <CreditCard className="h-4 w-4" />
-                Iibso Buugga Hadda
-              </Link>
-              <Link
-                href={`/payment/${bookId}?isGift=true`}
-                className="btn btn-secondary btn-block sm:w-auto"
-              >
-                🎁 U hdiyay Saaxiib
-              </Link>
-              <Link
-                href={`/books/${bookId}`}
-                className="btn btn-ghost btn-block sm:w-auto"
-              >
-                Eeg Faahfaahinta
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Celebration Card — on completion */}
-        {showCelebration && (
-          <div
-            className="mt-12 mb-8 rounded-2xl border border-[var(--reader-border)] p-6 sm:p-8 text-center shadow-lg"
-            style={{ background: "var(--reader-surface)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-[#C9962E] to-[#EAB308] text-white shadow-inner">
-              <PartyPopper className="h-7 w-7" />
-            </div>
-            <h3
-              className="font-display text-xl font-extrabold"
-              style={{ color: "var(--reader-heading)" }}
-            >
-              Hambalyo!
-            </h3>
-            <p
-              className="mx-auto mt-2 max-w-sm text-sm leading-relaxed"
-              style={{ color: "var(--reader-muted)" }}
-            >
-              Waad dhammaystirtay akhriska buuggan. Horumar wacan!
-            </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({
-                      title: "IsmailBooks",
-                      text: `Waxaan dhammaystay akhriska: ${bookTitle}!`,
-                      url: window.location.href,
-                    });
-                  }
-                }}
-                className="btn btn-secondary btn-block sm:w-auto font-bold px-6 h-12"
-              >
-                <Sparkles className="h-4 w-4 mr-1.5" />
-                La wadaag
-              </button>
-              <Link
-                href="/books"
-                className="btn btn-primary btn-block sm:w-auto font-bold px-6 h-12"
-              >
-                Buug kale eeg
-              </Link>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* Bottom dock */}
-      {chaptersCount > 0 && (
-        <footer
-          style={{
-            transform: chromeOpen ? "translateY(0)" : "translateY(120%)",
-            transition: prefersReducedMotion.current ? "none" : "transform 0.25s ease",
-          }}
-          className="sticky bottom-4 z-30 max-w-sm mx-auto w-full px-4 pb-2 pointer-events-none"
-        >
-          <div
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: "var(--reader-surface)",
-            }}
-            className="rounded-2xl p-2 flex items-center justify-between pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              disabled={currentChapter === 0}
-              onClick={() => goTo(currentChapter - 1)}
-              style={{
-                border: "1px solid var(--reader-border)",
-                color: "var(--reader-heading)",
-                minWidth: 44,
-                minHeight: 44,
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30"
-              aria-label="Hore"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Hore</span>
-            </button>
-
-            <div className="text-center px-2">
-              <span
-                style={{ color: "var(--reader-accent)" }}
-                className="text-xs font-extrabold block"
-              >
-                {currentChapter + 1} / {chaptersCount}
-              </span>
-              <span style={{ color: "var(--reader-muted)" }} className="text-[10px]">
-                {Math.round(blendedPct)}% dhammaystiran
-              </span>
-            </div>
-
-            <button
-              type="button"
-              disabled={currentChapter === chaptersCount - 1 && !isPreview}
-              onClick={() => goTo(currentChapter + 1)}
-              style={{
-                background: "var(--reader-accent)",
-                color: "#fff",
-                minWidth: 44,
-                minHeight: 44,
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30 px-3"
-              aria-label="Xiga"
-            >
-              <span className="hidden sm:inline">Xiga</span>
-              {isPreview && currentChapter === previewLimit ? (
-                <Lock className="w-4 h-4 text-amber-300" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        </footer>
-      )}
+        <ReaderCelebration
+          show={showCelebration}
+          bookTitle={bookTitle}
+        />
+      </ReaderContent>
 
       <ReaderSettingsSheet
         open={settingsOpen}
@@ -1366,130 +713,11 @@ export default function BookReaderClient({
         onToggleFullscreen={toggleFullscreen}
       />
 
-      {tocOpen && (
-        <div
-          className="fixed inset-0 z-50 flex justify-end"
-          style={{ background: "rgba(0,0,0,0.5)" }}
-          onClick={() => setTocOpen(false)}
-        >
-          <div
-            style={{
-              background: "var(--reader-bg)",
-              borderLeft: "1px solid var(--reader-border)",
-            }}
-            className="w-full max-w-xs h-full flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{ borderBottom: "1px solid var(--reader-border)" }}
-              className="flex items-center justify-between px-5 py-4"
-            >
-              <h3
-                style={{ color: "var(--reader-heading)" }}
-                className="font-display text-base font-extrabold flex items-center gap-2 m-0"
-              >
-                <List className="w-4 h-4" style={{ color: "var(--reader-accent)" }} />
-                Cutubyada Buugga
-              </h3>
-              <button
-                type="button"
-                onClick={() => setTocOpen(false)}
-                style={{ color: "var(--reader-muted)", minWidth: 44, minHeight: 44 }}
-                className="inline-flex items-center justify-center"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-2">
-              {toc?.map((ch, idx) => {
-                const isCurrent = idx === currentChapter;
-                const isLocked = isPreview && idx > previewLimit;
-
-                return (
-                  <button
-                    key={ch.file}
-                    type="button"
-                    onClick={() => goTo(idx)}
-                    style={{
-                      background: isCurrent ? "var(--reader-surface)" : "transparent",
-                      border: isCurrent
-                        ? "1px solid var(--reader-border)"
-                        : "1px solid transparent",
-                      color: isCurrent
-                        ? "var(--reader-heading)"
-                        : "var(--reader-body)",
-                      opacity: isLocked ? 0.6 : 1,
-                    }}
-                    className={`w-full text-left px-3 py-3 rounded-xl flex items-center justify-between group hover:bg-[var(--reader-surface)] transition-colors`}
-                  >
-                    <div className="flex items-center gap-2 min-w-0 pr-3">
-                      <div
-                        style={{
-                          background: isCurrent
-                            ? "var(--reader-accent)"
-                            : "transparent",
-                          color: isCurrent ? "#fff" : "var(--reader-muted)",
-                        }}
-                        className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-extrabold shrink-0"
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0 flex flex-col">
-                        <span className="text-sm font-semibold truncate block">
-                          {ch.title}
-                        </span>
-                      </div>
-                    </div>
-                    {isLocked ? (
-                      <Lock className="w-4 h-4 shrink-0 text-amber-500" />
-                    ) : (
-                      idx < currentChapter && (
-                        <Check className="w-4 h-4 shrink-0 text-emerald-500" />
-                      )
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {paywallModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setPaywallModalOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl border border-[#E8DFD2] bg-[#FBF7F0] p-6 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#7A1F2B]/10 text-[#7A1F2B]">
-              <Sparkles className="h-7 w-7" />
-            </div>
-            <h3 className="font-display text-xl font-extrabold text-[#201B16]">
-              Cutubkan waa Premium!
-            </h3>
-            <p className="mt-2 text-xs leading-relaxed text-[#6B5F52]">
-              Qaybtaan iyo inta ka dhiman buugga waxay u furan yihiin dadka iibsada
-              buuggan.
-            </p>
-            <div className="mt-6 flex flex-col gap-2">
-              <Link href={`/payment/${bookId}`} className="btn btn-primary btn-block">
-                <CreditCard className="h-4 w-4" />
-                Iibso Buugga Hadda
-              </Link>
-              <button
-                type="button"
-                onClick={() => setPaywallModalOpen(false)}
-                className="btn btn-ghost btn-sm"
-              >
-                Ka noqo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReaderPaywallModal
+        bookId={bookId}
+        open={paywallModalOpen}
+        onClose={() => setPaywallModalOpen(false)}
+      />
 
       <style>{`
         .reader-prose { line-height: var(--reader-line-height, 1.85); hyphens: none; -webkit-hyphens: none; }
