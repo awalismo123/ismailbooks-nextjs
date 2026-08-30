@@ -306,8 +306,8 @@ export default function SummaryReaderClient({
       />
 
       <style>{`
-        .reader-prose { line-height: 1.85; hyphens: none; -webkit-hyphens: none; }
-        .reader-prose p { margin-bottom: 1.4em; color: var(--reader-body); }
+        .reader-prose { line-height: 1.85; hyphens: none; -webkit-hyphens: none; text-align: left; }
+        .reader-prose p { margin-bottom: 1.4em; color: var(--reader-body); text-align: left; }
         .reader-prose h1, .reader-prose h2, .reader-prose h3 {
           font-family: var(--font-display, serif);
           font-weight: 800;

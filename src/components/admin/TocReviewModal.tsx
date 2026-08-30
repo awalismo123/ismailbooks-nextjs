@@ -9,11 +9,13 @@ type TocItem = { title: string; file: string };
 export default function TocReviewModal({
   bookId,
   bookTitle,
+  isLegacy = false,
   onClose,
   onSaved,
 }: {
   bookId: string;
   bookTitle: string;
+  isLegacy?: boolean;
   onClose: () => void;
   onSaved?: () => void;
 }) {
@@ -165,6 +167,18 @@ export default function TocReviewModal({
             <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               <span>{successMsg}</span>
+            </div>
+          )}
+
+          {isLegacy && !successMsg && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/90 p-3.5 text-xs text-amber-900">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+              <div className="space-y-1">
+                <p className="font-bold m-0">Nidaamka Cusub ee Qoraalka (Hardened Typography):</p>
+                <p className="text-[11px] text-amber-800 m-0 leading-relaxed">
+                  Buuggan waxaa la galiyay ka hor inta aan la hagaajin nidaamka qoraalka (inline style & justify stripping). Guji badhanka <strong>&quot;Re-ingest Clean HTML&quot;</strong> ee hoose si cutubyada loogu sifeeyo HTML nadiif ah.
+                </p>
+              </div>
             </div>
           )}
 

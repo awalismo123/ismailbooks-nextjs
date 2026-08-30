@@ -35,7 +35,7 @@ export default async function AdminPage() {
 
     adminSupabase
       .from("books")
-      .select("id, title, author, is_paid, price, views, total_downloads, is_active, category, description, pages, cover_image, file_link")
+      .select("id, title, author, is_paid, price, views, total_downloads, is_active, category, description, pages, cover_image, file_link, created_at, updated_at")
       .order("created_at", { ascending: false }),
 
     adminSupabase
@@ -220,6 +220,8 @@ export default async function AdminPage() {
       pages: b.pages ?? 0,
       coverUrl,
       file_link: b.file_link || "",
+      created_at: b.created_at || null,
+      updated_at: b.updated_at || null,
     };
   });
 

@@ -34,8 +34,17 @@ type Book = {
   id: number | string; title: string; author: string; is_paid: boolean; price: string;
   priceRaw: number; views: number; downloads: number; is_active: boolean;
   category: string | null; description: string | null; pages: number; coverUrl: string | null;
-  file_link: string;
+  file_link: string; created_at?: string | null; updated_at?: string | null;
 };
+
+const INGESTION_PIPELINE_CUTOFF_DATE = "2026-08-30T00:00:00.000Z";
+
+function isLegacyBookIngestion(b: Book): boolean {
+  if (!b.file_link) return false;
+  const lastProcessed = b.updated_at || b.created_at;
+  if (!lastProcessed) return true;
+  return new Date(lastProcessed).getTime() < new Date(INGESTION_PIPELINE_CUTOFF_DATE).getTime();
+}
 type UserData = {
   id: string;
   name: string;
@@ -602,7 +611,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
   const [paymentFilter, setPaymentFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [paymentSearch, setPaymentSearch] = useState("");
   const [bookModal, setBookModal] = useState<{ open: boolean; book: Book | null }>({ open: false, book: null });
-  const [tocModal, setTocModal] = useState<{ open: boolean; bookId: string; bookTitle: string } | null>(null);
+  const [tocModal, setTocModal] = useState<{ open: boolean; bookId: string; bookTitle: string; isLegacy?: boolean } | null>(null);
   const [blogModal, setBlogModal] = useState<{ open: boolean; post: BlogPost | null }>({ open: false, post: null });
   const [summaryModal, setSummaryModal] = useState<{ open: boolean; summary: EditableSummary | null }>({ open: false, summary: null });
   const [userDetailModal, setUserDetailModal] = useState<UserData | null>(null);
@@ -1154,7 +1163,19 @@ export default function AdminClient({ data }: { data: AdminData }) {
                             <Td className="text-xs text-[#201B16]">{b.pages ? `${b.pages} p` : "—"}</Td>
                             <Td>
                               {b.file_link ? (
-                                <span className="badge badge-success text-[10px]" title={b.file_link}>📄 File Loaded</span>
+                                <div className="flex flex-col items-start gap-1">
+                                  <span className="badge badge-success text-[10px]" title={b.file_link}>📄 File Loaded</span>
+                                  {isLegacyBookIngestion(b) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setTocModal({ open: true, bookId: String(b.id), bookTitle: b.title, isLegacy: true })}
+                                      className="badge badge-pending text-[10px] hover:opacity-80 transition-opacity flex items-center gap-0.5 cursor-pointer"
+                                      title="Buuggan waxaa la galiyay nidaamkii hore. Guji si aad u re-ingest garayso."
+                                    >
+                                      ⚠️ Re-ingest
+                                    </button>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="badge badge-pending text-[10px]">⚠️ No File</span>
                               )}
@@ -1166,7 +1187,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
                               <div className="flex items-center gap-2">
                                 <Link href={`/books/${b.id}/read?returnTo=${buildReturnTarget("/admin", { tab: "books" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[#FBF7F0]" title="Akhriso Buugga (Reader)"><BookOpen className="w-3.5 h-3.5" /></Link>
                                 <Link href={`/books/${b.id}?returnTo=${buildReturnTarget("/admin", { tab: "books" })}`} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg Faahfaahinta"><Eye className="w-3.5 h-3.5" /></Link>
-                                <button onClick={() => setTocModal({ open: true, bookId: String(b.id), bookTitle: b.title })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg & Wax ka beddel Cutubyada (TOC)"><List className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => setTocModal({ open: true, bookId: String(b.id), bookTitle: b.title, isLegacy: isLegacyBookIngestion(b) })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#1F3A54] hover:bg-[#FBF7F0]" title="Eeg & Wax ka beddel Cutubyada (TOC)"><List className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => setBookModal({ open: true, book: b })} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#7A1F2B] hover:bg-[rgba(122,31,43,0.06)]" title="Wax ka beddel / Soo rar Document"><Pencil className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => handleBookActive(b.id, b.is_active)} className="p-1.5 rounded-lg border border-[#E8DFD2] text-[#6B5F52] hover:bg-[#FBF7F0]" title={b.is_active ? "Kaa dhig Qarsoon" : "Ka dhig Live"}><Ban className="w-3.5 h-3.5" /></button>
                                 <button onClick={() => handleDeleteBook(b.id, b.title)} className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50" title="Tirtir Buugga"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -1775,6 +1796,7 @@ export default function AdminClient({ data }: { data: AdminData }) {
         <TocReviewModal
           bookId={tocModal.bookId}
           bookTitle={tocModal.bookTitle}
+          isLegacy={tocModal.isLegacy}
           onClose={() => setTocModal(null)}
           onSaved={() => { setTocModal(null); router.refresh(); }}
         />

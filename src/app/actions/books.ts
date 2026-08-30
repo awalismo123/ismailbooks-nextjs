@@ -116,6 +116,14 @@ export async function saveBookAction(
         })
         .eq("id", targetId);
 
+      // Persist the raw document file in storage so it can be re-ingested at any time
+      await adminSupabase.storage
+        .from("book-content")
+        .upload(filePath, buffer, {
+          contentType: bookDocFile.type || "application/octet-stream",
+          upsert: true,
+        });
+
       // Upload toc.json
       const tocStr = JSON.stringify(ingestion.toc, null, 2);
       await adminSupabase.storage
@@ -213,9 +221,13 @@ export async function reingestBookAction(
 
     const ingestion = await processBookFileBuffer(buffer, fileName);
 
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
     if (ingestion.pages) {
-      await adminSupabase.from("books").update({ pages: ingestion.pages }).eq("id", bookId);
+      updatePayload.pages = ingestion.pages;
     }
+    await adminSupabase.from("books").update(updatePayload).eq("id", bookId);
 
     const tocStr = JSON.stringify(ingestion.toc, null, 2);
     await adminSupabase.storage

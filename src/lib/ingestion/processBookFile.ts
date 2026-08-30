@@ -69,16 +69,27 @@ function textToHtmlParagraphs(rawText: string): string {
 }
 
 /**
- * Strip all class= and style= presentation attributes from an HTML string.
- * Mammoth may emit Word-theme classes; EPUBs ship their own colors/fonts.
+ * Strip all presentation attributes (style, class, align, valign, bgcolor, color, face, border, etc.)
+ * and deprecated presentational elements (<font>, <center>, <marquee>, <blink>) from an HTML string.
+ * Mammoth may emit Word-theme classes/alignments; EPUBs ship their own styles/fonts.
  * Keeping only semantic structure so .reader-prose CSS controls all visuals.
  */
-function stripPresentationAttrs(html: string): string {
-  return html
-    .replace(/\s+class="[^"]*"/gi, "")
-    .replace(/\s+class='[^']*'/gi, "")
-    .replace(/\s+style="[^"]*"/gi, "")
-    .replace(/\s+style='[^']*'/gi, "");
+export function stripPresentationAttrs(html: string): string {
+  if (!html) return "";
+
+  return (
+    html
+      // Remove deprecated presentational wrapper tags (<font>, </font>, <center>, </center>, etc.)
+      .replace(/<\/?font(?:\s+[^>]*)?>/gi, "")
+      .replace(/<\/?center(?:\s+[^>]*)?>/gi, "")
+      .replace(/<\/?marquee(?:\s+[^>]*)?>/gi, "")
+      .replace(/<\/?blink(?:\s+[^>]*)?>/gi, "")
+      // Remove presentational attributes (with double quotes, single quotes, or unquoted values)
+      .replace(
+        /\s+(?:class|style|align|valign|bgcolor|color|face|border|clear|cellpadding|cellspacing|hspace|vspace)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi,
+        ""
+      )
+  );
 }
 
 /**
@@ -343,8 +354,18 @@ export async function processBookFileBuffer(
   // 4. Plain Text or HTML
   if (ext === "txt" || ext === "html" || ext === "htm") {
     const textContent = buffer.toString("utf-8");
+    let cleanHtml: string;
+    if (ext === "txt") {
+      cleanHtml = textToHtmlParagraphs(textContent);
+    } else {
+      let body = textContent;
+      const bodyMatch = textContent.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch) body = bodyMatch[1];
+      body = body.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "");
+      cleanHtml = stripPresentationAttrs(body);
+    }
     // Bare semantic wrapper — .reader-prose provides all visual styling
-    const htmlContent = `<div class="chapter">${textToHtmlParagraphs(textContent)}</div>`;
+    const htmlContent = `<div class="chapter">${cleanHtml}</div>`;
     return {
       toc: [{ title: "Hordhac / Buugga Oo Dhammaystiran", file: "ch_001.html" }],
       chapters: [{ fileName: "ch_001.html", content: htmlContent }],
