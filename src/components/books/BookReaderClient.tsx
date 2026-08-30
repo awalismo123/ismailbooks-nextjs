@@ -277,7 +277,8 @@ export default function BookReaderClient({
     async function loadToc() {
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/toc.json`,
+          `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/toc.json?t=${Date.now()}`,
+          { cache: "no-store" }
         );
         if (!res.ok) throw new Error("TOC not found");
         const data = await res.json();
@@ -302,7 +303,8 @@ export default function BookReaderClient({
       for (let i = 0; i < Math.min(toc!.length, 10); i++) {
         try {
           const res = await fetch(
-            `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${toc![i].file}`,
+            `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${toc![i].file}?t=${Date.now()}`,
+            { cache: "no-store" }
           );
           const html = await res.text();
           const pCount = (html.match(/<p\b[^>]*>/gi) || []).length;
@@ -341,30 +343,37 @@ export default function BookReaderClient({
       try {
         const item = toc![currentChapter];
         if (!item) throw new Error("Chapter not found");
-        const url = `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${item.file}`;
+        const url = `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${item.file}?t=${Date.now()}`;
         const cacheKey = `reader-${storageId}-${item.file}`;
 
-        // Try cache first
-        const cached = await getChapterFromCache(cacheKey);
-        if (cached && !cancelled) {
-          setCurrentHtml(ensureLazyImages(cached));
-          setLoading(false);
-          // Background revalidate
-          fetch(url)
-            .then(async (r) => {
-              if (r.ok) {
-                const fresh = await r.text();
-                await setChapterInCache(cacheKey, fresh);
-              }
-            })
-            .catch(() => {});
-        } else {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error("Failed to load chapter.");
-          const html = await res.text();
-          if (!cancelled) {
-            setCurrentHtml(ensureLazyImages(html));
-            await setChapterInCache(cacheKey, html);
+        // Attempt fresh network fetch first
+        try {
+          const res = await fetch(url, { cache: "no-store" });
+          if (res.ok) {
+            const html = await res.text();
+            if (!cancelled) {
+              setCurrentHtml(ensureLazyImages(html));
+              await setChapterInCache(cacheKey, html);
+              setLoading(false);
+            }
+          } else {
+            // Fallback to cache on non-200
+            const cached = await getChapterFromCache(cacheKey);
+            if (cached && !cancelled) {
+              setCurrentHtml(ensureLazyImages(cached));
+              setOfflineBanner(true);
+            } else {
+              throw new Error("Failed to load chapter.");
+            }
+          }
+        } catch (netErr) {
+          // Fallback to IndexedDB cache on network error (offline mode)
+          const cached = await getChapterFromCache(cacheKey);
+          if (cached && !cancelled) {
+            setCurrentHtml(ensureLazyImages(cached));
+            setOfflineBanner(true);
+          } else {
+            throw netErr;
           }
         }
 
@@ -374,7 +383,8 @@ export default function BookReaderClient({
           getChapterFromCache(nextCacheKey).then((alreadyCached) => {
             if (alreadyCached) return;
             fetch(
-              `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${next.file}`,
+              `${SUPABASE_URL}/storage/v1/object/public/book-content/${storageId}/${next.file}?t=${Date.now()}`,
+              { cache: "no-store" }
             )
               .then(async (r) => {
                 if (r.ok) {
@@ -387,16 +397,7 @@ export default function BookReaderClient({
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          // Try cache on network failure
-          const item = toc![currentChapter];
-          const cacheKey = `reader-${bookId}-${item?.file}`;
-          const cached = await getChapterFromCache(cacheKey);
-          if (cached) {
-            setCurrentHtml(ensureLazyImages(cached));
-            setOfflineBanner(true);
-          } else {
-            setContentError(err instanceof Error ? err.message : "Qalad");
-          }
+          setContentError(err instanceof Error ? err.message : "Qalad");
         }
       } finally {
         if (!cancelled) setLoading(false);

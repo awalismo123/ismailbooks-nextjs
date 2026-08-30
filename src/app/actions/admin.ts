@@ -275,12 +275,22 @@ export async function saveSummaryAction(formData: FormData) {
 
       await adminSupabase.from("summaries").update(updateData).eq("id", targetId);
 
+      // Persist raw document file in storage
+      await adminSupabase.storage
+        .from("book-content")
+        .upload(filePath, buffer, {
+          contentType: summaryFile.type || "application/octet-stream",
+          upsert: true,
+          cacheControl: "0",
+        });
+
       const tocStr = JSON.stringify(ingestion.toc, null, 2);
       await adminSupabase.storage
         .from("book-content")
         .upload(`summary_${targetId}/toc.json`, Buffer.from(tocStr), {
           contentType: "application/json",
           upsert: true,
+          cacheControl: "0",
         });
 
       for (const chap of ingestion.chapters) {
@@ -289,6 +299,7 @@ export async function saveSummaryAction(formData: FormData) {
           .upload(`summary_${targetId}/${chap.fileName}`, Buffer.from(chap.content), {
             contentType: "text/html",
             upsert: true,
+            cacheControl: "0",
           });
       }
     } catch (err: any) {

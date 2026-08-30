@@ -37,7 +37,8 @@ export default function TocReviewModal({
       setErrorMsg(null);
       try {
         const res = await fetch(
-          `${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/toc.json`
+          `${SUPABASE_URL}/storage/v1/object/public/book-content/${bookId}/toc.json?t=${Date.now()}`,
+          { cache: "no-store" }
         );
         if (!res.ok) throw new Error("TOC lagama helin kaydka (No toc.json found).");
         const data = await res.json();

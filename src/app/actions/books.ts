@@ -122,18 +122,38 @@ export async function saveBookAction(
         .upload(filePath, buffer, {
           contentType: bookDocFile.type || "application/octet-stream",
           upsert: true,
+          cacheControl: "0",
         });
 
-      // Upload toc.json
+      // Clean up any old chapter files in storage if this is an update to an existing book
+      try {
+        const { data: existingFiles } = await adminSupabase.storage
+          .from("book-content")
+          .list(targetId);
+        if (existingFiles && existingFiles.length > 0) {
+          const currentChapterFiles = new Set(ingestion.chapters.map((c) => c.fileName));
+          const filesToDelete = existingFiles
+            .filter((f) => f.name.startsWith("ch_") && f.name.endsWith(".html") && !currentChapterFiles.has(f.name))
+            .map((f) => `${targetId}/${f.name}`);
+          if (filesToDelete.length > 0) {
+            await adminSupabase.storage.from("book-content").remove(filesToDelete);
+          }
+        }
+      } catch (cleanErr) {
+        console.warn("Could not clean old chapter files:", cleanErr);
+      }
+
+      // Upload toc.json with cacheControl: "0"
       const tocStr = JSON.stringify(ingestion.toc, null, 2);
       await adminSupabase.storage
         .from("book-content")
         .upload(`${targetId}/toc.json`, Buffer.from(tocStr), {
           contentType: "application/json",
           upsert: true,
+          cacheControl: "0",
         });
 
-      // Upload chapter HTML files in batches of 6 for fast parallel upload
+      // Upload chapter HTML files in batches of 6 with cacheControl: "0"
       const BATCH_SIZE = 6;
       for (let i = 0; i < ingestion.chapters.length; i += BATCH_SIZE) {
         const chunk = ingestion.chapters.slice(i, i + BATCH_SIZE);
@@ -144,6 +164,7 @@ export async function saveBookAction(
               .upload(`${targetId}/${chap.fileName}`, Buffer.from(chap.content), {
                 contentType: "text/html",
                 upsert: true,
+                cacheControl: "0",
               })
           )
         );
@@ -158,6 +179,8 @@ export async function saveBookAction(
 
   revalidatePath("/admin");
   revalidatePath("/books");
+  revalidatePath(`/books/${targetId}`);
+  revalidatePath(`/books/${targetId}/read`);
   revalidatePath("/");
   return { success: true };
 }
@@ -177,11 +200,13 @@ export async function updateTocAction(
       .upload(`${bookId}/toc.json`, Buffer.from(tocStr), {
         contentType: "application/json",
         upsert: true,
+        cacheControl: "0",
       });
 
     if (error) return { error: error.message };
 
     revalidatePath("/admin");
+    revalidatePath(`/books/${bookId}`);
     revalidatePath(`/books/${bookId}/read`);
     return { success: true };
   } catch (err: any) {
@@ -229,12 +254,31 @@ export async function reingestBookAction(
     }
     await adminSupabase.from("books").update(updatePayload).eq("id", bookId);
 
+    // Clean up any stale chapter files from previous ingestion
+    try {
+      const { data: existingFiles } = await adminSupabase.storage
+        .from("book-content")
+        .list(bookId);
+      if (existingFiles && existingFiles.length > 0) {
+        const currentChapterFiles = new Set(ingestion.chapters.map((c) => c.fileName));
+        const filesToDelete = existingFiles
+          .filter((f) => f.name.startsWith("ch_") && f.name.endsWith(".html") && !currentChapterFiles.has(f.name))
+          .map((f) => `${bookId}/${f.name}`);
+        if (filesToDelete.length > 0) {
+          await adminSupabase.storage.from("book-content").remove(filesToDelete);
+        }
+      }
+    } catch (cleanErr) {
+      console.warn("Could not clean old chapter files on re-ingest:", cleanErr);
+    }
+
     const tocStr = JSON.stringify(ingestion.toc, null, 2);
     await adminSupabase.storage
       .from("book-content")
       .upload(`${bookId}/toc.json`, Buffer.from(tocStr), {
         contentType: "application/json",
         upsert: true,
+        cacheControl: "0",
       });
 
     const BATCH_SIZE = 6;
@@ -247,12 +291,15 @@ export async function reingestBookAction(
             .upload(`${bookId}/${chap.fileName}`, Buffer.from(chap.content), {
               contentType: "text/html",
               upsert: true,
+              cacheControl: "0",
             })
         )
       );
     }
 
     revalidatePath("/admin");
+    revalidatePath("/books");
+    revalidatePath(`/books/${bookId}`);
     revalidatePath(`/books/${bookId}/read`);
     return { success: true };
   } catch (err: any) {
