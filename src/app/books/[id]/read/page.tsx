@@ -5,6 +5,7 @@ import { parseReturnTarget, UserRole } from "@/lib/navigation";
 import { canReadBook } from "@/lib/permissions";
 import { loadProgressAction } from "@/app/actions/reader";
 import { createAdminClient } from "@/lib/supabase/server";
+import ReaderErrorBoundary from "@/components/reader/ReaderErrorBoundary";
 import type { BookCardData } from "@/components/books/BookCard";
 
 const COVER_GRADIENTS = [
@@ -149,16 +150,18 @@ export default async function ReaderPage({
 
   // 7. Render Reader
   return (
-    <BookReaderClient
-      bookId={bookId}
-      bookTitle={authResult.book.title}
-      bookAuthor={authResult.book.author || ""}
-      isPreview={isPreviewMode}
-      isPaid={authResult.isPaid}
-      returnTarget={returnTarget}
-      initialChapter={initialChapter}
-      initialScrollOffset={initialScrollOffset}
-      relatedBooks={relatedBooks}
-    />
+    <ReaderErrorBoundary>
+      <BookReaderClient
+        bookId={bookId}
+        bookTitle={authResult.book.title}
+        bookAuthor={authResult.book.author || ""}
+        isPreview={isPreviewMode}
+        isPaid={authResult.isPaid}
+        returnTarget={returnTarget}
+        initialChapter={initialChapter}
+        initialScrollOffset={initialScrollOffset}
+        relatedBooks={relatedBooks}
+      />
+    </ReaderErrorBoundary>
   );
 }

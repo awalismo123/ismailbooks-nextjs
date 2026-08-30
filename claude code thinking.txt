@@ -1,0 +1,406 @@
+here is claude code thinking before token or model qoute ended so i need you to follow his way of this and what he wants to do :
+
+The user has approved all three defaults and given the go-ahead for Phase 1. Let me now implement Phase 1: extracting state into custom hooks.
+
+The plan:
+
+Create src/hooks/useReaderPrefs.ts
+Create src/hooks/useReaderProgress.ts
+Create src/hooks/useAnnotations.ts
+Create src/hooks/useNetworkStatus.ts
+Modify src/components/books/BookReaderClient.tsx to use the hooks
+Let me carefully analyze what needs to go into each hook, reading the source code again carefully.
+
+Let me start writing the hooks. I need to be very careful to preserve all the exact logic. For the preferences hook, I'm tracking font size, font family, theme, line spacing, and fullscreen/chrome visibility state, along with the localStorage keys and style mappings needed to persist and apply those settings.
+
+Now I'm writing the hydration effect that reads saved font size and font family values from localStorage, validating them against acceptable ranges and options before applying them to state.
+
+Then I move to useReaderProgress.ts, the largest hook, which manages chapter tracking, scroll restoration, resume banners, streak days, and celebration state via a mix of state variables and refs. It handles progress saving through a stabilized callback, a periodic time-tracking ticker, autosave on chapter change and every 60 seconds, and flush-on-exit logic tied to page visibility events, plus bootstrap logic and navigation helpers. I realize goTo() depends on state owned by BookReaderClient—things like preview mode, paywall modal, TOC state, resume banner, and chrome visibility—so I need to figure out how to pass these into the hook.
+
+For Phase 1, I think it's cleanest to have useReaderProgress just expose the chapter setter, its refs, and the save function, while leaving goTo where it currently lives since it touches too many pieces of UI state that aren't being extracted yet.
+
+There's also setChromeVisible, plus refs like pendingScrollRestore, scrollOffsetRef, and restoredOnce that all live in useReaderProgress. For Phase 1, since the JSX itself isn't moving, it might actually be cleaner to keep goTo in BookReaderClient and just pull values from the hooks, rather than forcing all these UI setters into useReaderProgress as callback props.
+
+I realize toc still needs to be accessible since saveProgress uses it to check if the book is complete. Looking at the actual save logic, it writes local progress and builds a form submission with the chapter index and scroll offset before persisting it.
+
+I'll pass toc as a parameter into useReaderProgress, then move on to defining goTo, which needs to handle preview limits by checking the requested index against the allowed range.
+
+I'm adding a celebration trigger that fires confetti once the reader reaches near the end of the last chapter, and this effect also needs external dependencies like toc, loading state, chapter count, and scroll progress. I'm deciding to have useReaderProgress accept a single config object bundling all these external dependencies, which is the cleanest way to structure the hook's signature.
+
+For goTo, I'm weighing whether to keep it in BookReaderClient using values from the hook, or move it into the hook itself and pass in UI setters like setPaywallModalOpen and setTocOpen as callbacks -- I'll go with putting it inside the hook since that matches the plan closely enough.
+
+Finishing the parameter list...
+
+I realize there's no real circular dependency issue here since setters are just function references being passed through. I'll move forward with implementing this, including the keyboard handler that responds to arrow key navigation for turning pages.
+
+It draws on goTo and setChromeVisible from separate hooks, making it a cross-hook concern, so I'll keep it in BookReaderClient for Phase 1. Next I'm looking at the scroll effect that tracks scroll position and toggles chrome visibility based on scroll direction, hiding it when scrolling down past a threshold and showing it when scrolling up, but only when no modals are open.
+
+Given its complexity, I'll keep this scroll effect in BookReaderClient for Phase 1 rather than moving it into a specific hook, since it draws from multiple hooks' refs and state. Now I'm cataloging everything that remains in BookReaderClient after this phase: imports, the component signature, storage ID logic, the various hook calls (useReaderPrefs, useReaderProgress, useAnnotations, useNetworkStatus), auth and mount effects, and the assorted UI state flags for modals and panels.
+
+I'm also tracking table-of-contents fetching, chapter content loading, scroll progress tracking, preview/paywall CTA logic, several refs for touch and scroll timing, and the associated scroll, keyboard, and restore effects that still need to live in the main component.
+
+I'm mapping out where derived values, memoized annotated HTML, owner nudge dismissal state, and reduced-motion handling belong, plus separating out constants, helper functions like image lazy-loading and IndexedDB access, and type definitions. I'm noticing that restoredOnce creates a dependency between the scroll restore effect and goTo, so if goTo moves into useReaderProgress, that ref needs to move there too.
+
+Now I'm tracing pendingScrollRestore across the codebase - it's created in BookReaderClient, set during progress bootstrap in useReaderProgress, read during scroll restoration, updated by jumpToBookmark in useAnnotations, and referenced by the resume banner's continue button, so it needs to be shared across all these locations too.
+
+Since useReaderProgress is the primary owner of both pendingScrollRestore and scrollOffsetRef (needing them for save and exit-flush logic), I'll create both there and return them, with useAnnotations accepting them as parameters.
+
+Now I'm starting to write the actual code, beginning with useReaderPrefs.ts -- setting up local storage keys for theme, font size, font family, and line spacing preferences.
+
+Defining color palettes for each theme...
+
+Now I'm setting up the dyslexia-friendly font styles with wider letter and word spacing, then building the reader preferences hook that tracks font size, family, theme, line spacing, and fullscreen state, with hydration happening after mount to safely load saved values.
+
+Adding change handlers for theme, font size, font family, and line spacing that update state and persist to localStorage, plus starting on a fullscreen toggle function.
+
+Writing the network status hook to track online/offline state via browser events, then moving on to the more complex reader progress hook where I need to think through the parameters carefully.
+
+I also need previewLimit for the paywall guard in goTo, plus setters for chrome visibility, paywall modal, and table of contents state. I'm also wondering whether chaptersCount should be passed separately or derived from toc.
+
+length inside the hook, and thinking through whether toc and scrollProgressPct should be reactive params -- since saveProgress checks whether the current chapter is the last one using toc.length, that dependency needs to stay fresh without breaking the 60-second interval, which is already isolated via a ref.
+
+The celebration effect also needs several of these values as params, so I'm settling on defining the hook's options type to include bookId, preview flags, initial chapter/scroll state, toc, scroll progress, loading state, and the chrome/paywall/toc visibility setters as its interface.
+
+I'm also planning to relocate the local progress read/write helpers and the streak-tracking utilities into this hook's file since they're only used here. Writing the hook now...
+
+Adding streak calculation logic...
+
+Now I'm setting up the useReaderProgress hook, defining its options interface and initializing state for chapter tracking, resume banners, and streak days.
+
+I'm building the bootstrap logic that reads local progress and falls back to a server-loaded progress record when no chapter or scroll offset is already known.
+
+Once resolved, I set the current chapter and scroll refs, and if the offset is significant, I show a resume banner with an estimated completion percentage. I'm also noting that a streak-tracking effect runs alongside this bootstrap after mount.
+
+Now I'm adding effects to record the reading streak once on mount, tick a timer that accumulates time spent every 30 seconds, and building a saveProgress callback that only fires once the initial load is done.
+
+After saving, I show a confirmation toast, and I'm setting up a stable ref to track timing behavior for the effect.
+
+I keep a ref for saveProgress so the interval doesn't need to restart, then add an effect that triggers a save whenever the chapter changes, syncing the chapter ref first so the save always reflects the latest chapter.
+
+I set up a single persistent 60-second autosave interval that's never torn down by chapter changes, always invoking the latest saveProgress via the ref. Then I add another effect that flushes progress on pagehide or visibilitychange using sendBeacon, since that method reliably fires even during tab close or navigation.
+
+Wiring up the listeners...
+
+I'm registering both event listeners and cleaning them up on unmount, then moving to set up a celebration effect that triggers when the reader reaches the final chapter.
+
+Adding confetti bursts...
+
+Now I'm defining a goTo function that handles chapter navigation, checking preview limits to trigger the paywall modal when needed, otherwise resetting scroll state and jumping to the target chapter with smooth scrolling.
+
+I'm returning the hook's public interface with chapter state, progress tracking refs, and the goTo function. But I'm second-guessing whether the streak effect belongs as a separate effect with empty deps versus being folded into the main hydration effect, since it depends on bookId as a prop dependency.
+
+The original code keeps the streak recording inside the same once-only mount effect using an eslint-disable comment to bypass the exhaustive-deps rule for bookId, so I'll preserve that same intentional pattern rather than splitting it out.
+
+Since local bookmark hydration doesn't affect the remote hydration timing (which waits for login), splitting it into a separate effect should be safe. Now I'm sketching out the useAnnotations hook's inputs, including bookId, login state, current chapter, and a scroll offset ref.
+
+I'm mapping out which pieces of state each function needs -- toggleBookmark pulls from toc, currentChapter, currentHtml, bookmarks, and scrollOffsetRef, while jumpToBookmark needs to close the panel and update chapter state. jumpToHighlight similarly handles navigation and chrome visibility, and createHighlight, createBookmarkFromText, removeBookmark, and removeHighlight each depend on their respective refs, login state, and persistence calls.
+
+I also notice annotatedHtml is a memo in BookReaderClient that filters highlights by chapter and applies them to the current HTML, combining outputs from useAnnotations and useReaderProgress. Now I'm starting to write the useAnnotations hook itself, setting up its imports and state.
+
+Still defining the hook's setup...
+
+Still writing normalizeBookmark...
+
+Writing readBookmarks logic...
+
+Then I set up a hydration effect that runs after mount, loading bookmarks from local storage into state and separately reading and parsing stored highlights for the current book, wrapped in try/catch to handle any storage errors safely.
+
+Now I'm writing a merge helper that combines local and remote bookmarks into a single map, keying entries by book ID, chapter index, rounded scroll offset, and a preview text snippet, and keeping whichever version is most recently created when duplicates are found.
+
+Now I'm adding cloud sync functions that push bookmark and highlight updates to the server via form-data actions whenever logged in.
+
+Writing persist helper for highlights...
+
+I'm also setting up an effect to hydrate annotations from the remote server once the user is logged in, guarding it with a ref so it only runs once per session.
+
+Now I'm defining the effect's dependency array, then computing whether the current position is bookmarked by checking if any bookmark's chapter and scroll offset are close enough to the current one. I'm starting to build the toggleBookmark handler, grabbing the chapter title from the table of contents.
+
+I'm also generating a preview snippet by stripping scripts, styles, and HTML tags from the chapter's content, then checking if a bookmark already exists near this scroll position for the current chapter.
+
+If found within 250px, I remove it as a toggle-off action; otherwise I create a new bookmark entry with a unique id, title, preview, and timestamp, then persist it to the top of the list.
+
+Now I'm adding navigation functions: jumping to a bookmark sets the chapter and scroll offset then smoothly scrolls after a short delay, and I'm starting a similar jumpToHighlight function that will locate the highlighted element in the DOM.
+
+Building the highlight entry object and saving it, then starting a similar bookmark creation function that captures selected text with its chapter info...
+
+Adding remove/delete handlers for bookmarks and highlights that sync deletions to the server when logged in, then assembling the final returned object exposing all the state and actions from this hook.
+
+Now I'm turning to rewriting BookReaderClient.tsx itself, importing the new hooks and stripping out the logic that's been extracted while keeping all UI states like TOC, settings, paywall modal, search, and chapter content loading intact, along with the auth and owner-nudge effects that remain local to this component.
+
+Confirming that IDB helpers and SUPABASE_URL stay in BookReaderClient, while localProgressKey, readLocalProgress, and writeLocalProgress move to useReaderProgress. Since writeLocalProgress is also used in the scroll handler still in BookReaderClient, I need to export it from the hook and trace all its call sites.
+
+Still writing imports...
+
+I'm setting up an IndexedDB caching layer for chapter content with a week-long TTL, then starting the main reader component with session-based auth state tracking.
+
+Adding more state hooks...
+
+Wiring up more reader hooks...
+
+I'm adding a separate mount-only effect to hydrate the owner nudge dismissal state from sessionStorage, keeping it distinct from the other shared hydration logic, and then starting on an effect to detect the user's reduced-motion preference via matchMedia.
+
+Adding scroll restore and tracking...
+
+I'm setting up the scroll listener cleanup and double-checking the dependency array matches what the effect actually uses, making sure settingsOpen is included since it's referenced in the condition.
+
+Now I'm adding the keyboard navigation effect—arrow keys move between chapters, and "f" toggles chrome visibility—wiring up the same event listener pattern with cleanup on unmount.
+
+I'm now computing derived values: total chapter count from the table of contents, the current chapter's title, and a blended progress percentage that combines chapter position with in-chapter scroll progress.
+
+I'm filtering highlights down to the current chapter and applying them to the rendered HTML, then setting up theme styles and chrome visibility logic based on whether settings, table of contents, annotations, or the paywall modal are open, with an early return showing a blank white screen while unmounted. Now I need to double-check how the owner nudge hydration is handled in the original code.
+
+The original bookId is captured by closure with empty deps, so my split effects preserve that same pattern. Splitting the single hydration effect into multiple independent [] effects should be functionally equivalent, since React batches them together and none of them depend on each other's order.
+
+I'm now checking useAnnotations more carefully -- readBookmarks depends on bookId via useCallback, but calling it inside an effect with empty deps means I'd need to either add it to deps (breaking the empty-deps pattern) or accept the closure staleness like the original does.
+
+Looking closer, the original defines readBookmarks as a plain function that reads from local storage keyed by bookId, and it's only invoked once inside the mount-only hydration effect. So for useAnnotations I should follow the same pattern rather than introducing useCallback.
+
+I also notice toggleBookmark reads and writes bookmarks directly from the bookmarks state, checking for an existing match to remove it or prepending a new one before persisting.
+
+The original toggleBookmark uses bookmarks state directly rather than the ref, since it's a plain function recreated each render that always captures the latest state. If I wrap it in useCallback for the hook, I need to include bookmarks in the dependency array to preserve this exact behavior rather than switching to the ref.
+
+I'll stop overanalyzing and start writing the actual code, using useCallback where it makes sense while keeping plain functions where the original did. Since toggleBookmark gets called directly in JSX handlers, it doesn't strictly need to be stable, but wrapping it is harmless. I also need to double-check the settingsOpen dependency in the scroll effect matches the original's conditional logic.
+
+I'll keep SUPABASE_URL in the dependency arrays exactly as in the original since it's a stable module-level constant, so including it doesn't change behavior. Now I'm checking the dependency lists for saveProgress and other effects to make sure I preserve every original dependency precisely.
+
+Looking closer at the original saveProgress callback, showSavedToast is included in the dependency array but itemType isn't, and there's no eslint-disable comment on this particular callback that I can find. Maybe the linter just didn't flag it originally, or it was overlooked.
+
+I'll add itemType to the dependency array since that's the correct behavior, and I'll keep showSavedToast as a no-op callback inside useReaderProgress for future flexibility rather than inlining it. Now I'm ready to write out the five files, starting with a self-contained useReaderPrefs.ts and a useReaderProgress.ts that accepts bookId, isPreview, and related parameters.
+
+For useAnnotations.ts, I'm settling on the parameters it needs including bookId, isLoggedIn, currentChapter, and scroll/toc-related state, and I'm confirming that bookmarks state dependency inside toggleBookmark isn't a circular import issue, just a normal state reference. I also note jumpToBookmark needs to trigger chrome visibility when jumping to a bookmark.
+
+I'm confirming both setChromeVisible calls need the standard React dispatch type signature since they're called with a plain boolean value. I also verify that SUPABASE_URL should remain in BookReaderClient rather than moving into useReaderProgress, since the progress hook only relies on the save/load actions and doesn't touch Supabase directly.
+
+Now I'm counting up the remaining state variables in BookReaderClient after extracting hooks - it drops from 33 down to 16, with the other 17 states distributed across the new custom hooks like useReaderPrefs, which takes ownership of fontSize, fontFamily, and theme-related settings.
+
+Continuing through the rest of the list, most remaining states (tocOpen, settingsOpen, paywallModalOpen, searchOpen, toc, currentHtml, loading, contentError, hasContent, etc.) stay in the main reader state, while streakDays, showCelebration, resumeBanner, and initialLoadDone move into useReaderProgress, and offlineBanner moves into useNetworkStatus.
+
+Tallying it all up, 16 of the original 33 states get moved into the new hooks, leaving 17 remaining in BookReaderClient -- which checks out against the original count.
+
+Still counting state hooks...
+
+Still counting state hooks...
+
+Still tracing more state variables...
+
+I count around 32 useState hooks so far against the expected 33, close enough that I've likely captured them all. Now I want to check what props the useAnnotations hook expects in TypeScript.
+
+I'm ready to write the code, but first checking a few more closures: toggleBookmark depends on bookmarks state directly rather than a ref, which is fine for a memoized callback since bookmarks changes are infrequent enough. I'm also confirming that annotatedHtml, normalizeBookmark, and readBookmarks all correctly capture their dependencies (highlights, bookId, and the bookmark key constants) within their respective scopes without leaking stale closures.
+
+The trickier part is the original hydration effect, which bundles reader settings, bookmarks, highlights, the owner nudge flag, and streak calculation into one empty-dependency effect that runs once after mount. Splitting this across separate hooks means these pieces will now run as separate effects fired in hook-registration order, so I need to make sure useReaderPrefs and the other hooks are called in the same sequence as the original code to preserve correct execution order.
+
+Since these effects don't depend on each other's results and all run before any resulting re-renders, the behavior should be equivalent regardless of the split. Now I'm considering whether defining readBookmarks as a plain function inside my useAnnotations hook (rather than useCallback) will avoid ESLint dependency warnings the same way the original's component-scoped function did.
+
+Actually, since readBookmarks closes over bookmarkListKey, ESLint's exhaustive-deps rule will still flag it even as a plain function -- so I'll match the original's approach of using an eslint-disable comment on that effect rather than trying to avoid the warning structurally.
+
+Writing the mount effect...
+
+For the setChromeVisible parameter type, I'll use React.Dispatch<React.SetStateAction<boolean>> since it accepts plain boolean values too, matching what useReaderPrefs actually returns.
+
+Checking the dependency array for goTo in useReaderProgress: setChromeVisible, setPaywallModalOpen, and setTocOpen are all React setState functions, which are guaranteed stable across renders, so they're safe to include. The other dependencies like isPreview and previewLimit could theoretically change between renders.
+
+Now I'm ready to stop analyzing and actually write the files. For saveProgress, I need to verify it correctly bails out early when the initial load isn't done, there's no book ID, it's a preview, or the item type is a summary.
+
+Since SUPABASE_URL stays module-level in BookReaderClient.tsx, no dependency changes are needed there. I'm also checking the chapter fetch error handling, which falls back to cached content on network failure and shows an offline banner, or sets an error message if no cache exists.
+
+I'm confirming setOfflineBanner from useNetworkStatus is directly usable in BookReaderClient, so that wiring works fine. Now I need to look carefully at the scroll handler's dependencies, particularly how settingsOpen and tocOpen are checked inside the condition but need proper handling in the effect.
+
+So settingsOpen isn't in deps but tocOpen and paywallModalOpen are, meaning the handler gets replaced when those toggle but stays stale for settingsOpen. Since all three live in BookReaderClient in the refactor, that same dependency array and stale-closure quirk carries over unchanged, and setChromeVisible from useReaderPrefs stays stable so it's fine being excluded. saveProgress from useReaderProgress is correctly included since it depends on toc/initialLoadDone, so the handler still gets replaced appropriately when those change.
+
+Since toc is state that transitions from null to loaded, saveProgress regenerates identically to the original behavior — the hook re-runs with fresh params on each parent re-render, recreating saveProgress the same way. Refs like scrollOffsetRef, chapterRef, and timeSpentRef don't need to be in deps since they're read at call time. I'm satisfied this matches the original semantics, so now I'll move on to actually writing the code across the files.
+
+I'm laying out the extraction: a useReaderPrefs hook holding preference state, hydration, and mutators; a useReaderProgress hook for progress and chapter tracking with its effects; a useAnnotations hook for annotation CRUD and sync; a useNetworkStatus hook for the offline banner; and then the BookReaderClient component that ties them together.
+
+Now I'm double-checking that itemType stays correctly wired into the exit-flush effect and saveProgress's callback dependencies, making sure summary-type items still get properly excluded from progress saving.
+
+The bootstrap function loads progress conditionally based on itemType, but its effect dependencies deliberately omit itemType to match the original eslint-disabled dep array—I need to preserve that exact pattern along with the celebration effect's toc-dependent logic and its chapter count calculation.
+
+I'm confirming that the setChromeVisible dispatcher type is compatible everywhere it's passed and called, including in goTo, jumpToBookmark, and similar navigation functions.
+
+Now I'm mapping out what the trimmed BookReaderClient.tsx should look like after extracting the hooks: importing the four hooks and their shared constants, keeping the remaining state and effects, and leaving the JSX section completely untouched. I'm double-checking one detail — the scroll handler's debounced call to writeLocalProgress needs to stay wired correctly after the refactor.
+
+I also need to export writeLocalProgress from the progress hook and import it back into the client component. And I'm noting that normalizeBookmark and readBookmarks are plain functions, not wrapped in useCallback, so I'll preserve that same pattern inside the new hook rather than introducing memoization that wasn't there before.
+
+For the CRUD-style bookmark functions though, I'm weighing whether to wrap them in useCallback for cleanliness, but since that could change function identity and potentially affect child component behavior, I'm checking where each of these callbacks gets passed into JSX to confirm it's safe.
+
+If it doesn't matter either way, useCallback is safe; if they do use memo, it could only reduce re-renders, which counts as an invisible optimization rather than a real behavior change. I'll go ahead and wrap the CRUD operations in useCallback within useAnnotations, since it's the idiomatic hook pattern and stays consistent with a pure reorganization.
+
+Now I'm writing out the implementations. I'm double-checking that settingsOpen stays local to BookReaderClient so the scroll effect still has access to it without changes, and considering whether forceShowChrome should remain a thin wrapper around setChromeVisible from useReaderPrefs or be inlined directly.
+
+I'll keep forceShowChrome defined locally as a small helper to minimize JSX churn. I'm also confirming isBookmarked gets computed inside useAnnotations and returned from the hook so the JSX can consume it directly, which checks out.
+
+Now I need to sort out React import consistency across the new hook files, using named imports like useState, useEffect, useRef, useCallback, and MutableRefObject where needed instead of the default React import the original file used.
+
+I'm settling on adding "use client" to hook files that use browser APIs, since it's common practice for clarity even though it's technically only strictly required where they're consumed by client components.
+
+Now working through the bookmark-proximity check within useAnnotations, making sure the scroll offset ref is passed in correctly so the comparison against chapter and pixel threshold stays accurate.
+
+I also want to confirm that jumpToBookmark's chapter-setting flows correctly from useReaderProgress through BookReaderClient into useAnnotations, since that's the same setter being shared across hooks.
+
+Now I'm ready to write the actual code, carefully composing each file so the extracted state and effects are removed, the hooks are wired in correctly, and the JSX stays exactly as before.
+
+As long as the destructured names match the originals, the JSX stays untouched. I'm going through each setter call used in the JSX to confirm which hook now owns it, checking things like the offline banner, annotations panel, and chrome visibility toggles all map correctly to their new hooks while search and settings state remain local to the client component.
+
+Now I'm outlining the structure of the final BookReaderClient.tsx file, identifying which effects remain after extracting logic into hooks—starting with the Supabase auth effect and the prefers-reduced-motion effect.
+
+That accounts for all 25 useEffect calls, with remote annotations hydration also moving into useAnnotations. Counting them back up, BookReaderClient now retains 11 effects, down from 25, while the rest get distributed across useReaderPrefs (1), useReaderProgress (roughly 8, covering bootstrap, streak, time-spent, autosave, chapter-change, exit-flush, and celebration), and useAnnotations.
+
+But my totals aren't adding up to exactly 25, so I'm going back through the original file line by line to recount each effect and make sure I'm not missing or double-counting one, starting with the supabase auth check.
+
+Continuing the list: preview CTA, celebration, keyboard handling, mount state, and remote annotations hydration. That gives me 20 effects total, but the prompt mentions 25, so I'm trying to figure out what I'm missing — maybe the Supabase auth state change listener or some nested effects I haven't accounted for yet.
+
+Actually, tracing through it, the onAuthStateChange listener is nested inside the same effect as checkUser, so that's still just one effect rather than two separate ones. Rather than keep hunting for the exact count, I've verified all the logic is covered, so I'll move forward with composing the full file.
+
+One detail I want to confirm: when jumpToBookmark calls setChromeVisible(true) from inside useAnnotations, this correctly propagates back up through useReaderPrefs's closure and triggers a re-render with the updated visibility state — that flow checks out. Now I'm ready to write out the complete file contents directly, and I still need to handle the itemType === "summary" case within saveProgress.
+
+I also want to make sure itemType is included in dependency arrays wherever it's referenced, particularly in the exit-flush logic of useReaderProgress. Before writing everything out, I'm weighing whether useAnnotations needs an explicit "use client" directive — since it uses React state hooks it must run client-side, but as a leaf file only imported by other client components, it may not strictly require the directive; still, adding it explicitly seems like the safer, clearer choice.
+
+Since there are no existing hook files in the codebase to follow as a pattern, I'll go ahead and mark these new hooks with "use client" for safety. Now I'm working through BookReaderClient.tsx systematically, confirming that all the lucide icon imports are still used somewhere in the JSX and should be preserved, while planning which additional imports need to be pulled in for the new hooks.
+
+I'm mapping out everything that needs to be stripped from BookReaderClient now that it's being moved into hooks: the localStorage key constants, theme/font/line-height constants, dyslexia font helpers, streak-tracking functions, local progress read/write helpers, the various useState declarations, and the large hydration effect along with the network status, progress bootstrap, time-spent ticker, and save-progress effects — all of these are being relocated into their respective hooks.
+
+Continuing to catalog what stays in the component: the caching helpers, component signature and props, session/auth state, all the various UI toggle states (TOC, settings, paywall, search), refs for scroll and touch tracking, and the TOC/chapter fetching state and effects.
+
+Rounding out the list with more state pieces (preview CTA, preview limit, mount state), several effects for scroll restoration, scroll handling, and keyboard navigation that pull from a shared hook, plus derived values like chapter progress percentages and the theme variables, ending with the JSX staying untouched. I'm now confirming the dismissOwnerNudge callback stays local since it depends on bookId, and I'm keeping the annotatedHtml memo that filters highlights by chapter.
+
+Now I'm tracing where each dependency for annotatedHtml originates -- highlights from useAnnotations, currentChapter from useReaderProgress, and currentHtml as local state -- and confirming isBookmarked also comes from useAnnotations.
+
+I'm settling on a build order: start with useNetworkStatus since it's isolated, then useReaderPrefs, then useReaderProgress, then useAnnotations, and finally wire everything into BookReaderClient. I'm also flagging a potential ordering issue where readBookmarks gets called inside an effect but depends on another function defined nearby.
+
+I'm confirming that since bookId stays stable across the component's lifetime, capturing it via closure in the effect's initial mount is safe. I'm also verifying that changes to isLoggedIn cascade correctly through the memoized sync function into the persist function and finally trigger the remote hydration effect, matching the original behavior exactly.
+
+I also note the original updates the refs synchronously during render rather than in an effect, so I'm replicating that same pattern in the hook to keep timing identical. Now I'm moving on to writing out the actual hook files, starting with reviewing the scroll handler logic to port over correctly.
+
+Adding the passive scroll listener and cleanup logic, I'm mapping out which state and refs move to useReaderPrefs and useReaderProgress versus what stays in BookReaderClient, keeping the effect's dependency array unchanged.
+
+Now I want to verify that goTo's dependencies won't cause stale closures — since previewLimit starts at 0 and updates once the TOC loads, goTo gets recreated, but since it's not in the keyboard effect's dependency list, I need to check whether the handler's captured reference to goTo stays fresh or goes stale.
+
+In the original, goTo isn't memoized with useCallback either—it's recreated every render as a plain function. But this means the keyboard effect's stale closure issue exists in the original too, unless a render happens to coincide with the deps changing. So this isn't actually a regression introduced by the new code; it's a preexisting quirk of how goTo is captured.
+
+If currentChapter changes but previewLimit hasn't, goTo stays the same object, and the keyboard effect re-runs and captures that same function — functionally equivalent to the original either way.
+
+But practically it doesn't matter, since previewLimit only changes once, going from 0 to the first prose chapter index. By the time arrow keys are pressed it's already stable, so this is a safe, pure refactor. Now I'll actually start composing the five files.
+
+Writing hook constants and theme styles...
+
+Finishing the night theme colors, then defining font class mappings and line-height values for the reading modes.
+
+I'm also adding a helper that injects a dyslexia-friendly font style into the document head with wider letter and word spacing.
+
+Reading each remaining preference from storage, validating against allowed values before applying it—font family switches trigger the dyslexia font loader when needed, and theme gets checked against the light/sepia/night options.
+
+Adding font family and line spacing setters...
+
+I'm implementing fullscreen toggle logic that requests or exits fullscreen and updates state accordingly, then returning the complete hook interface with all reader settings and handlers. Now I'm moving on to building the network status hook.
+
+Now I'm building a useReaderProgress hook that manages reading position persistence, starting with local storage helpers to save and read chapter index and scroll offset keyed by book ID.
+
+Adding streak tracking logic...
+
+Defining the hook's parameters now, setting up types for chapter progress, TOC handling, scroll tracking, and paywall/chrome visibility state that the reader UI will consume.
+
+Adding more state refs...
+
+I'm setting up the streak tracking effect that records today's reading and computes the current streak once on mount, then starting a progress bootstrap effect that loads local progress and initializes chapter/offset values for non-preview sessions.
+
+Now I'm resolving the initial chapter and scroll offset by prioritizing explicit props, then server-loaded progress, then local storage, and reconciling with the most recent local scroll position before setting up a resume banner if the offset is significant.
+
+I'm also setting up a periodic ticker to track reading time while the tab is open, and defining a saveProgress callback that will persist progress once initial load completes.
+
+I'm keeping a ref to the latest saveProgress so the 60-second interval doesn't need it as a dependency, avoiding unnecessary resets on chapter changes. I'm also adding a separate effect that triggers a save whenever the chapter changes, updating the chapter ref first before calling saveProgress.
+
+Now I'm setting up a stable 60-second autosave interval that persists across chapter changes by referencing the latest saveProgress via ref, plus building an unload/background flush handler using sendBeacon (more reliable than fetch during page exit) that skips preview mode and summary items, sending the book ID, chapter index, and scroll offset as payload.
+
+Now I'm adding a celebration effect that fires confetti when the reader reaches the last chapter and scrolls past 90%, using a dynamically imported confetti library with staggered bursts in the theme's colors.
+
+I'm defining a goTo function that handles chapter navigation—checking preview limits to trigger the paywall modal if needed, otherwise resetting scroll state, updating the current chapter, closing the table of contents, and smoothly scrolling back to the top—then starting to build the return object for the hook.
+
+Still writing type definitions...
+
+Adding more state and refs for annotations panel visibility and tab selection, keeping bookmark/highlight refs synced with state, and setting up localStorage keys for bookmarks.
+
+I'm writing a normalizeBookmark helper to sanitize raw stored data into a proper BookmarkEntry, handling field name variations and defaults for chapter index, scroll offset, title, and preview text.
+
+Still writing storage logic...
+
+Then I set up hydration on mount that loads bookmarks and highlights from local storage, applying them to state if any are found.
+
+Now I'm writing a merge function that dedupes local and remote bookmarks by matching on book, chapter, scroll position bucket, and preview text, keeping whichever entry is more recent.
+
+Writing merge logic dedupe...
+
+Now I'm setting up cloud syncing for bookmarks, building a function that posts the updated bookmark list to the server via form data when the user is logged in.
+
+Adding persist logic for highlights...
+
+Once merged, I persist both the bookmarks and highlights locally, silently ignoring any fetch errors. Then I define isBookmarked by checking if any existing bookmark matches the current chapter and is within 250px of the current scroll offset, before moving on to the CRUD operations.
+
+Now I'm writing toggleBookmark, which builds a preview snippet by stripping scripts, styles, and HTML tags from the current chapter content, falling back to a default label if there's no content.
+
+Then it checks whether a bookmark already exists near the current scroll position — if so, it removes that bookmark (toggling it off); otherwise it creates a new bookmark entry with a unique id, chapter info, preview text, and timestamp, then persists the updated list.
+
+I'm defining jumpToBookmark, which closes the annotations panel, navigates to the bookmark's chapter, sets the pending scroll restore position, and smoothly scrolls to it after a short delay. I'm also starting to define jumpToHighlight for navigating to a saved highlight similarly.
+
+Adding more highlight logic...
+
+Adding remove functions for bookmarks and highlights that also sync deletions to the server when logged in, then returning the full hook interface with state and toggle handlers.
+
+Now I'm turning to updating BookReaderClient.tsx itself: importing the new hooks, stripping out the logic that's now extracted, wiring up the hook calls, and making sure the JSX stays exactly the same. I'm double-checking that the setCurrentChapter setter type from useReaderProgress lines up correctly with what useAnnotations expects, and confirming it does.
+
+Writing imports and component structure...
+
+Adding more imports for annotations and network status tracking, plus keeping the existing dynamic imports, TOC types, and IndexedDB caching helpers intact.
+
+Now I'm setting up the BookReaderClient component, handling authentication state from both NextAuth session and Supabase login, and initializing UI state variables for the table of contents and settings panels.
+
+Adding more state for scroll tracking, preview limits, and mount status...
+
+Setting up progress tracking with useReaderProgress, then wiring in annotations state and handlers via useAnnotations for bookmarks and highlights.
+
+I'm adding network status monitoring and hydrating the owner nudge dismissal from session storage on initial mount, then starting to set up a reduced-motion effect.
+
+Adding scroll restoration logic that waits for the chapter to load before jumping back to the saved offset, guarding against repeated restores with a ref.
+
+Adding keyboard navigation logic...
+
+Now I'm computing derived progress values like chapter percentage and a blended scroll progress, then starting to build the memoized annotated HTML.
+
+The original searches and filters bookmarks directly by state to add or remove entries, then persists the result. Since my useCallback version depends on bookmarks in its deps array, it recreates the function whenever bookmarks changes, which keeps behavior equivalent to the original plain function, though I'm now second-guessing whether I should use a ref instead of state to avoid unnecessary recreation.
+
+I notice the original is actually inconsistent—toggleBookmark reads from bookmarks state while removeBookmark and createBookmarkFromText both use bookmarksRef.current—so I'll preserve that inconsistency exactly rather than "fixing" it. I don't think I need to export the showSavedToast callback since it has no dependencies and isn't used elsewhere. I've analyzed this enough now, so I'm ready to write out the complete code across all five files and commit the changes.
+
+One more thing to verify: the bookmarks/highlights ref syncing happens at render time in both the original and my useAnnotations hook, which matches. I also need to confirm contentRef stays accessible for both the article element and the HighlightToolbar component in the refactored version.
+
+Now I'm checking whether settingsOpen is actually a dependency in the scroll effect—since it's not listed, the handler closes over a stale value, meaning opening settings alone wouldn't re-trigger the effect, so the chrome auto-hide logic could still fire using the old false value even while settings is open. That's the original behavior I need to preserve exactly, not "fix," in my refactor.
+
+I'm now tracing every place storageId gets used—the TOC fetch URL, the first prose chapter fetch, and the general chapter fetch—to make sure the refactored version wires it through correctly everywhere.
+
+I also notice the original code has an inconsistency where the error fallback cache key uses bookId instead of storageId, so I'll preserve that quirk rather than fix it. Now I'm ready to actually write out the full implementation.
+
+I'm deciding to rewrite the entire file fresh rather than piecing together edits, since it's safer given how much the top section changes while the JSX stays identical. Now I'm double-checking whether HighlightColor still needs to stay imported directly in BookReaderClient.tsx, since createHighlight moved into the useAnnotations hook.
+
+TypeScript should infer HighlightEntry[] fine without needing the explicit import elsewhere in the component. HighlightColor is only relevant to createHighlight's signature now inside useAnnotations, so BookReaderClient doesn't strictly need it, but I'll leave the type-only import as-is to avoid unnecessary churn even if it ends up unused.
+
+Since these are just structural function references passed as props, TypeScript should be able to infer them without explicit imports, but to avoid any risk of type errors, I'll keep BookmarkEntry imported in BookReaderClient for safety.
+
+Actually, checking usage more carefully, BookReaderClient never types anything explicitly with BookmarkEntry or HighlightEntry since those functions now come from hooks, so these imports can be safely removed.
+
+Actually, I should check whether noUnusedLocals is enabled in tsconfig before assuming these imports are safe—if it is, I need to actually verify each type is unused in BookReaderClient and remove them if so, checking things like AnnotationsTab usage carefully rather than guessing.
+
+I'm checking whether BookReaderClient still needs explicit type imports for ReaderTheme, FontFamily, and LineSpacing given that indexing into THEME_STYLES, FONT_CLASSES, and LINE_HEIGHT uses values already typed via the hook's return, so TypeScript should infer these without extra imports.
+
+On second thought, safety matters more than tidiness here since I don't know if the tsconfig enforces strict unused-import checks. I'll only strip out type imports I'm certain are unused, and leave any that might still be referenced through the hook's return types.
+
+Checking the JSX confirms these types aren't explicitly referenced there, so removal is safe. Though I should reconsider keeping the theme-related type imports since ReaderSettingsSheet likely relies on those types being resolvable through the props passed to it, even without an explicit annotation.
+
+Finishing the import list...
+
+Now I'm confirming that the various save/load/sync actions for progress, bookmarks, and highlights should all be removed from BookReaderClient's imports since that logic now lives in the useReaderProgress and useAnnotations hooks instead.
+
+But createClient stays in BookReaderClient since it's used separately for checking the supabase auth session state alongside the existing session hook. Now I'm moving on to write out each file in full, starting with a closer look at the scroll restore effect logic.
+
+Now I have a clear picture of the full plan, so I'm confirming the placement of each piece: constants and type declarations stay in the client component, helper functions and comment blocks move to their respective hooks alongside the logic they belong to. Time to actually write out the refactored code.
+
+I'm double-checking the saveProgress callback's dependency array, since itemType was originally omitted but I planned to add it — I want to make sure that addition doesn't change the effect's behavior since itemType is a prop that changes when the reader switches between chapters and summaries.
+
+I'll work through this sequentially myself rather than parallelizing with subagents, since correctness matters more than speed here. My plan: write the four hooks in order of complexity (network status, reader prefs, reader progress, annotations), then update the client component, run a build check, and commit.
