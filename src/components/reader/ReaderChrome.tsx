@@ -412,75 +412,7 @@ export default function ReaderChrome({
         </div>
       )}
 
-      {/* Bottom dock */}
-      {chaptersCount > 0 && (
-        <footer
-          style={{
-            transform: chromeOpen ? "translateY(0)" : "translateY(120%)",
-            transition: prefersReducedMotion ? "none" : "transform 0.25s ease",
-          }}
-          className="sticky bottom-4 z-30 max-w-sm mx-auto w-full px-4 pb-2 pointer-events-none"
-        >
-          <div
-            style={{
-              border: "1px solid var(--reader-border)",
-              background: "var(--reader-surface)",
-            }}
-            className="rounded-2xl p-2 flex items-center justify-between pointer-events-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              disabled={currentChapter === 0}
-              onClick={() => goTo(currentChapter - 1)}
-              style={{
-                border: "1px solid var(--reader-border)",
-                color: "var(--reader-heading)",
-                minWidth: 44,
-                minHeight: 44,
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30"
-              aria-label="Hore"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Hore</span>
-            </button>
 
-            <div className="text-center px-2">
-              <span
-                style={{ color: "var(--reader-accent)" }}
-                className="text-xs font-extrabold block"
-              >
-                {currentChapter + 1} / {chaptersCount}
-              </span>
-              <span style={{ color: "var(--reader-muted)" }} className="text-[10px]">
-                {Math.round(blendedPct)}% dhammaystiran
-              </span>
-            </div>
-
-            <button
-              type="button"
-              disabled={currentChapter === chaptersCount - 1 && !isPreview}
-              onClick={() => goTo(currentChapter + 1)}
-              style={{
-                background: "var(--reader-accent)",
-                color: "#fff",
-                minWidth: 44,
-                minHeight: 44,
-              }}
-              className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30 px-3"
-              aria-label="Xiga"
-            >
-              <span className="hidden sm:inline">Xiga</span>
-              {isPreview && currentChapter === previewLimit ? (
-                <Lock className="w-4 h-4 text-amber-300" />
-              ) : (
-                <ChevronRight className="w-4 h-4" />
-              )}
-            </button>
-          </div>
-        </footer>
-      )}
 
       {/* Table of contents drawer */}
       <ReaderToc
@@ -493,5 +425,98 @@ export default function ReaderChrome({
         goTo={goTo}
       />
     </>
+  );
+}
+
+export interface ReaderDockProps {
+  currentChapter: number;
+  chaptersCount: number;
+  blendedPct: number;
+  chromeOpen: boolean;
+  prefersReducedMotion: boolean;
+  isPreview?: boolean;
+  previewLimit: number;
+  goTo: (idx: number) => void;
+}
+
+export function ReaderDock({
+  currentChapter,
+  chaptersCount,
+  blendedPct,
+  chromeOpen,
+  prefersReducedMotion,
+  isPreview = false,
+  previewLimit,
+  goTo,
+}: ReaderDockProps) {
+  if (chaptersCount === 0) return null;
+
+  return (
+    <footer
+      style={{
+        transform: chromeOpen ? "translateY(0)" : "translateY(120%)",
+        transition: prefersReducedMotion ? "none" : "transform 0.25s ease",
+      }}
+      className="sticky bottom-4 z-30 max-w-sm mx-auto w-full px-4 pb-2 pointer-events-none"
+    >
+      <div
+        style={{
+          border: "1px solid var(--reader-border)",
+          background: "var(--reader-surface)",
+        }}
+        className="rounded-2xl p-2 flex items-center justify-between pointer-events-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          disabled={currentChapter === 0}
+          onClick={() => goTo(currentChapter - 1)}
+          style={{
+            border: "1px solid var(--reader-border)",
+            color: "var(--reader-heading)",
+            minWidth: 44,
+            minHeight: 44,
+          }}
+          className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30"
+          aria-label="Hore"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Hore</span>
+        </button>
+
+        <div className="text-center px-2">
+          <span
+            style={{ color: "var(--reader-accent)" }}
+            className="text-xs font-extrabold block"
+          >
+            {currentChapter + 1} / {chaptersCount}
+          </span>
+          <span style={{ color: "var(--reader-muted)" }} className="text-[10px]">
+            {Math.round(blendedPct)}% dhammaystiran
+          </span>
+        </div>
+
+        <button
+          type="button"
+          disabled={currentChapter === chaptersCount - 1 && !isPreview}
+          onClick={() => goTo(currentChapter + 1)}
+          style={{
+            background: "var(--reader-accent)",
+            color: "#fff",
+            minWidth: 44,
+            minHeight: 44,
+          }}
+          className="inline-flex items-center justify-center gap-1 rounded-xl text-xs font-bold disabled:opacity-30 px-3"
+          aria-label="Xiga"
+        >
+          <span className="hidden sm:inline">Xiga</span>
+          {isPreview && currentChapter === previewLimit ? (
+            <Lock className="w-4 h-4 text-amber-300" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+    </footer>
   );
 }

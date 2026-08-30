@@ -20,7 +20,7 @@ import { useAnnotations } from "@/hooks/useAnnotations";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { applyHighlightsToHtml } from "@/lib/reader/applyHighlights";
 
-import ReaderChrome from "@/components/reader/ReaderChrome";
+import ReaderChrome, { ReaderDock } from "@/components/reader/ReaderChrome";
 import ReaderContent from "@/components/reader/ReaderContent";
 import {
   ReaderOfflineBanner,
@@ -697,6 +697,17 @@ export default function BookReaderClient({
           bookTitle={bookTitle}
         />
       </ReaderContent>
+
+      <ReaderDock
+        currentChapter={currentChapter}
+        chaptersCount={chaptersCount}
+        blendedPct={blendedPct}
+        chromeOpen={chromeOpen}
+        prefersReducedMotion={prefersReducedMotion.current}
+        isPreview={isPreview}
+        previewLimit={previewLimit}
+        goTo={goTo}
+      />
 
       <ReaderSettingsSheet
         open={settingsOpen}
